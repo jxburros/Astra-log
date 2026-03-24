@@ -7,9 +7,18 @@ interface Message {
   content: string;
 }
 
+export interface TroubleshootRequest {
+  packageJson: string;
+  terminalErrors: string;
+}
+
 interface Props {
   settings: Settings;
   getProjectContext: () => Promise<string>;
+  /** When set, the panel automatically sends an AI troubleshooting request (or shows a tip if no key). */
+  troubleshootRequest?: TroubleshootRequest | null;
+  /** Called once the troubleshoot request has been processed so the parent can clear it. */
+  onTroubleshootHandled?: () => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing. 
@@ -19,7 +28,7 @@ Ask clarifying questions ONLY if absolutely necessary to understand their intent
 Do NOT write code yet. Your goal is to help them gather thoughts without disrupting their flow.
 When they ask for an implementation plan, provide a comprehensive, step-by-step guide based on all the ideas discussed. Organize it into logical steps, architecture changes, and required components.`;
 
-export function ChatPanel({ settings, getProjectContext }: Props) {
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled }: Props) {
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: 'Hello! I am here to help you brainstorm ideas for your app. Share your thoughts, and when you are ready, we can generate a full implementation plan.' }
   ]);
@@ -34,6 +43,28 @@ export function ChatPanel({ settings, getProjectContext }: Props) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Handle automated troubleshoot requests from the boot recovery system
+  useEffect(() => {
+    if (!troubleshootRequest) return;
+
+    const hasAIAccess = settings.provider === 'local' || !!settings.apiKey;
+
+    if (!hasAIAccess) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "We could not start the app automatically. Please check your package.json or connect an AI provider in Settings for troubleshooting assistance."
+      }]);
+      onTroubleshootHandled?.();
+      return;
+    }
+
+    const { packageJson, terminalErrors } = troubleshootRequest;
+    const prompt = `[System Request] The application failed to start automatically. Please analyze the following and suggest a fix:\n\n**package.json:**\n\`\`\`json\n${packageJson || '(not available)'}\n\`\`\`\n\n**Terminal Error Output:**\n\`\`\`\n${terminalErrors || '(no output captured)'}\n\`\`\`\n\nPlease identify the issue and provide specific commands or configuration changes to resolve the startup problem.`;
+    handleSend(prompt, true);
+    onTroubleshootHandled?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [troubleshootRequest]);
 
   const handleSend = async (text: string, isPlanRequest = false) => {
     if (!text.trim() && !isPlanRequest) return;

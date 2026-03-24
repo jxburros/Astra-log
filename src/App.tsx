@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, Play, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen } from 'lucide-react';
-import { parseZipToTree } from './lib/zipParser';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen } from 'lucide-react';
+import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
+import type { TroubleshootRequest } from './components/ChatPanel';
 import { SettingsModal, Settings } from './components/SettingsModal';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
@@ -20,6 +21,10 @@ export default function App() {
   const [isIsolated, setIsIsolated] = useState(true);
   const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
   const [isDragging, setIsDragging] = useState(false);
+  /** Message shown in the UI and terminal overlay during multi-tier boot recovery. */
+  const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+  /** Payload forwarded to ChatPanel to trigger automated AI troubleshooting. */
+  const [troubleshootRequest, setTroubleshootRequest] = useState<TroubleshootRequest | null>(null);
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
@@ -29,12 +34,21 @@ export default function App() {
     }
     return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434/api/chat' };
   });
+  // Keep a ref so async boot callbacks always read the latest settings
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
   
   const terminalRef = useRef<Terminal | null>(null);
   const webcontainerRef = useRef<WebContainer | null>(null);
   const shellWriterRef = useRef<WritableStreamDefaultWriter<string> | null>(null);
   const shellProcessRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
   const serverReadyUnsubscribeRef = useRef<(() => void) | null>(null);
+  /** Tracks the currently-running boot process so it can be killed on reset. */
+  const currentBootProcRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
+  /** Set to true as soon as the server-ready event fires for the active session. */
+  const bootSucceededRef = useRef<boolean>(false);
+  /** Rolling buffer of the last 5 000 chars of terminal output for AI context. */
+  const terminalOutputBufferRef = useRef<string>('');
 
   useEffect(() => {
     const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -63,6 +77,8 @@ export default function App() {
     if (terminalRef.current) {
       terminalRef.current.write(data);
     }
+    // Keep a rolling buffer for AI troubleshooting context
+    terminalOutputBufferRef.current = (terminalOutputBufferRef.current + data).slice(-5000);
   };
 
   const handleStartOver = useCallback(async () => {
@@ -73,6 +89,12 @@ export default function App() {
     if (serverReadyUnsubscribeRef.current) {
       serverReadyUnsubscribeRef.current();
       serverReadyUnsubscribeRef.current = null;
+    }
+
+    // Kill the active boot process (if any tier is mid-attempt)
+    if (currentBootProcRef.current) {
+      try { currentBootProcRef.current.kill(); } catch (e) { console.warn('Failed to kill boot process:', e); }
+      currentBootProcRef.current = null;
     }
 
     // Kill the running shell process
@@ -93,12 +115,18 @@ export default function App() {
       terminalRef.current.writeln('\x1b[34m[System]\x1b[0m Terminal initialized. Waiting for zip upload...');
     }
 
+    // Reset boot tracking refs
+    bootSucceededRef.current = false;
+    terminalOutputBufferRef.current = '';
+
     // Reset all state
     setStatus('idle');
     setErrorMsg('');
     setPreviewUrl(null);
     setPreviewBaseUrl('');
     setBrowserPath('/');
+    setRecoveryMessage(null);
+    setTroubleshootRequest(null);
   }, []);
 
   const getProjectContext = async () => {
@@ -146,17 +174,155 @@ export default function App() {
     }
   };
 
+  /**
+   * Returns true when the terminal output string contains a recognisable
+   * "missing script" error from npm (any modern npm version format).
+   */
+  const isMissingScriptError = (output: string): boolean =>
+    output.includes('missing script:') ||
+    output.includes('Missing script:') ||
+    output.includes('npm error Missing script') ||
+    output.includes('npm ERR! missing script');
+
+  /**
+   * Trigger the Tier 4 AI fallback after all local boot attempts have failed.
+   * If the user has no AI provider configured, show a helpful tip instead.
+   */
+  const triggerAIFallback = (packageJson: string | null) => {
+    setStatus('error');
+    setErrorMsg('Could not start the application automatically.');
+    setRecoveryMessage(null);
+    writeToTerminal('\r\n\x1b[31m[System]\x1b[0m All automatic boot attempts failed.\r\n');
+
+    const current = settingsRef.current;
+    const hasAIAccess = current.provider === 'local' || !!current.apiKey;
+
+    if (hasAIAccess) {
+      writeToTerminal('\x1b[34m[System]\x1b[0m Triggering AI troubleshooting...\r\n');
+    } else {
+      writeToTerminal('\x1b[33m[System]\x1b[0m Tip: Connect an AI provider in Settings for troubleshooting assistance.\r\n');
+    }
+
+    setTroubleshootRequest({
+      packageJson: packageJson || '',
+      terminalErrors: terminalOutputBufferRef.current.split('\n').slice(-20).join('\n'),
+    });
+  };
+
+  /**
+   * Runs a single boot command as a dedicated WebContainer process.
+   * Resolves to true when the command definitively failed (missing-script error,
+   * non-zero exit, or stream closed without server-ready).
+   * Resolves to false when boot has already succeeded (server-ready fired).
+   */
+  const runBootCommand = (
+    wc: WebContainer,
+    cmd: string,
+  ): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const [program, ...args] = cmd.trim().split(/\s+/);
+      let settled = false;
+      const done = (failed: boolean) => {
+        if (!settled) { settled = true; resolve(failed); }
+      };
+
+      wc.spawn(program, args).then((proc) => {
+        currentBootProcRef.current = proc;
+        let outputBuf = '';
+
+        // Read process output asynchronously
+        (async () => {
+          const reader = proc.output.getReader();
+          try {
+            while (true) {
+              const { done: streamDone, value } = await reader.read();
+              if (streamDone) { done(true); break; }
+              writeToTerminal(value);
+              outputBuf = (outputBuf + value).slice(-10000); // bounded buffer
+              terminalOutputBufferRef.current = (terminalOutputBufferRef.current + value).slice(-5000);
+
+              if (!settled && isMissingScriptError(outputBuf)) {
+                proc.kill();
+                done(true);
+              }
+              if (bootSucceededRef.current) {
+                done(false);
+              }
+            }
+          } catch {
+            done(true);
+          } finally {
+            reader.releaseLock();
+          }
+        })();
+
+        // Also resolve when the process exits
+        proc.exit.then((code) => {
+          if (bootSucceededRef.current) { done(false); return; }
+          done(code !== 0);
+        }).catch(() => done(true));
+
+      }).catch(() => done(true));
+    });
+  };
+
+  /**
+   * Iterates through the ordered boot-command hierarchy (Tiers 1–3).
+   * Falls back to Tier 4 (AI) when all local attempts are exhausted.
+   */
+  const runBootHierarchy = async (
+    wc: WebContainer,
+    commands: string[],
+    packageJson: string | null,
+  ) => {
+    for (let i = 0; i < commands.length; i++) {
+      if (bootSucceededRef.current) return;
+
+      const cmd = commands[i];
+      writeToTerminal(`\r\n\x1b[34m[System]\x1b[0m Trying: ${cmd}...\r\n`);
+      if (i > 0) {
+        setRecoveryMessage(`Trying '${cmd}'...`);
+      }
+
+      const failed = await runBootCommand(wc, cmd);
+
+      if (!failed || bootSucceededRef.current) return;
+
+      if (i < commands.length - 1) {
+        const next = commands[i + 1];
+        writeToTerminal(`\r\n\x1b[33m[System]\x1b[0m Command failed, trying '${next}'...\r\n`);
+        setRecoveryMessage(`Command failed, trying '${next}'...`);
+      }
+    }
+
+    // Tier 4: AI fallback
+    if (!bootSucceededRef.current) {
+      triggerAIFallback(packageJson);
+    }
+  };
+
   const processZipFile = async (file: File) => {
     try {
       setStatus('uploading');
       writeToTerminal(`\r\n\x1b[34m[System]\x1b[0m Parsing zip file: ${file.name}...\r\n`);
-      
-      const tree = await parseZipToTree(file);
+
+      const { tree, packageJson, readme } = await parseZipToTree(file);
+      // Reset boot tracking for this new session
+      bootSucceededRef.current = false;
+      terminalOutputBufferRef.current = '';
+      setRecoveryMessage(null);
+      setTroubleshootRequest(null);
+
       writeToTerminal(`\x1b[32m[System]\x1b[0m Zip parsed successfully.\r\n`);
+
+      // Build the multi-tier boot command hierarchy from metadata
+      const scripts = parsePackageJsonScripts(packageJson || '');
+      const readmeCmds = extractCommandsFromReadme(readme || '');
+      const bootCmds = buildBootCommands(scripts, readmeCmds);
 
       setStatus('booting');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Booting WebContainer environment...\r\n`);
-      
+
       if (!webcontainerRef.current) {
         webcontainerRef.current = await WebContainer.boot();
       }
@@ -175,15 +341,18 @@ export default function App() {
       }
 
       serverReadyUnsubscribeRef.current = wc.on('server-ready', (port, url) => {
+        bootSucceededRef.current = true;
         writeToTerminal(`\r\n\x1b[32m[System]\x1b[0m Server ready at ${url}\r\n`);
         setPreviewBaseUrl(url);
         setPreviewUrl(url);
         setStatus('ready');
+        setRecoveryMessage(null);
       });
 
+      // Spawn interactive shell for user interaction throughout the session
       setStatus('starting');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Starting interactive shell...\r\n`);
-      
+
       const shellProcess = await wc.spawn('jsh', {
         terminal: {
           cols: terminalRef.current?.cols || 80,
@@ -203,8 +372,27 @@ export default function App() {
       const writer = shellProcess.input.getWriter();
       shellWriterRef.current = writer;
 
-      // Automate install and dev
-      await writer.write('npm install && npm run dev\r');
+      // Install dependencies via a dedicated process so we can await completion
+      setStatus('installing');
+      writeToTerminal(`\x1b[34m[System]\x1b[0m Installing dependencies...\r\n`);
+
+      const installProc = await wc.spawn('npm', ['install']);
+      installProc.output.pipeTo(new WritableStream({
+        write(data) { writeToTerminal(data); }
+      }));
+      const installExit = await installProc.exit;
+
+      if (installExit !== 0) {
+        setStatus('error');
+        setErrorMsg('npm install failed. Check the terminal for details.');
+        writeToTerminal('\r\n\x1b[31m[System]\x1b[0m npm install failed.\r\n');
+        return;
+      }
+      writeToTerminal(`\x1b[32m[System]\x1b[0m Dependencies installed.\r\n`);
+
+      // Attempt boot commands following the multi-tier hierarchy (Tiers 1–4)
+      setStatus('starting');
+      await runBootHierarchy(wc, bootCmds, packageJson);
 
     } catch (err: any) {
       console.error(err);
@@ -293,10 +481,17 @@ export default function App() {
             </label>
           )}
           
-          {status !== 'idle' && status !== 'error' && status !== 'ready' && (
+          {status !== 'idle' && status !== 'error' && status !== 'ready' && !recoveryMessage && (
             <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
               <RefreshCw className="w-4 h-4 animate-spin" />
               {status.charAt(0).toUpperCase() + status.slice(1)}...
+            </div>
+          )}
+
+          {recoveryMessage && status !== 'ready' && status !== 'error' && (
+            <div className="flex items-center gap-2 text-amber-400 text-xs font-medium px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+              <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
+              {recoveryMessage}
             </div>
           )}
           
@@ -345,7 +540,11 @@ export default function App() {
             Terminal
           </div>
           <div className="flex-1 p-2 overflow-hidden">
-            <TerminalComponent onTerminalReady={handleTerminalReady} onTerminalData={handleTerminalData} />
+            <TerminalComponent
+              onTerminalReady={handleTerminalReady}
+              onTerminalData={handleTerminalData}
+              statusMessage={recoveryMessage}
+            />
           </div>
         </div>
 
@@ -449,7 +648,12 @@ export default function App() {
 
         {/* Right Panel: AI Chat */}
         <div className="w-96 min-w-[300px] flex flex-col">
-          <ChatPanel settings={settings} getProjectContext={getProjectContext} />
+          <ChatPanel
+            settings={settings}
+            getProjectContext={getProjectContext}
+            troubleshootRequest={troubleshootRequest}
+            onTroubleshootHandled={() => setTroubleshootRequest(null)}
+          />
         </div>
       </main>
     </div>
