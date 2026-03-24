@@ -231,6 +231,7 @@ export default function App() {
   const runBootCommand = (
     wc: WebContainer,
     cmd: string,
+    isCurrentSession: () => boolean,
   ): Promise<boolean> => {
     return new Promise((resolve) => {
       const [program, ...args] = cmd.trim().split(/\s+/);
@@ -240,6 +241,13 @@ export default function App() {
       };
 
       wc.spawn(program, args).then((proc) => {
+        // If the session was invalidated while the spawn was in flight, bail out.
+        if (!isCurrentSession()) {
+          proc.kill();
+          done(false);
+          return;
+        }
+
         currentBootProcRef.current = proc;
         let outputBuf = '';
 
@@ -287,9 +295,11 @@ export default function App() {
     wc: WebContainer,
     commands: string[],
     packageJson: string | null,
+    isCurrentSession: () => boolean,
   ) => {
     for (let i = 0; i < commands.length; i++) {
       if (bootSucceededRef.current) return;
+      if (!isCurrentSession()) return;
 
       const cmd = commands[i];
       writeToTerminal(`\r\n\x1b[34m[System]\x1b[0m Trying: ${cmd}...\r\n`);
@@ -297,9 +307,10 @@ export default function App() {
         setRecoveryMessage(`Trying '${cmd}'...`);
       }
 
-      const failed = await runBootCommand(wc, cmd);
+      const failed = await runBootCommand(wc, cmd, isCurrentSession);
 
       if (!failed || bootSucceededRef.current) return;
+      if (!isCurrentSession()) return;
 
       if (i < commands.length - 1) {
         const next = commands[i + 1];
@@ -309,7 +320,7 @@ export default function App() {
     }
 
     // Tier 4: AI fallback
-    if (!bootSucceededRef.current) {
+    if (!bootSucceededRef.current && isCurrentSession()) {
       triggerAIFallback(packageJson);
     }
   };
@@ -433,7 +444,7 @@ export default function App() {
 
       // Attempt boot commands following the multi-tier hierarchy (Tiers 1–4)
       setStatus('starting');
-      await runBootHierarchy(wc, bootCmds, packageJson);
+      await runBootHierarchy(wc, bootCmds, packageJson, isCurrentSession);
 
     } catch (err: any) {
       if (!isCurrentSession()) return;
