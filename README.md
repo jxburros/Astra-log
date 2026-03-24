@@ -61,11 +61,34 @@ If you want to run NOVA/sandbox as a desktop application and produce a native in
    ```bash
    npm install
    ```
-2. Install the Rust toolchain (required by Tauri):
+2. Install Rust + Cargo (required by Tauri):
+
+   **Windows (PowerShell):**
+   ```powershell
+   winget install --id Rustlang.Rustup -e
+   ```
+   Then close/reopen your terminal and verify:
+   ```powershell
+   cargo --version
+   ```
+
+   **macOS / Linux:**
    ```bash
    curl https://sh.rustup.rs -sSf | sh
    ```
-   Then restart your terminal so `cargo` is available.
+   Then close/reopen your terminal and verify:
+   ```bash
+   cargo --version
+   ```
+
+3. **Windows only:** install the "Desktop development with C++" workload from Visual Studio Build Tools (required by Tauri's native build pipeline).
+
+4. **Windows only:** make sure Microsoft Edge WebView2 Runtime is installed (usually preinstalled on Windows 11).
+
+### Troubleshooting
+
+- If you see `'sh' is not a recognized command` on Windows, you are likely running the Unix/macOS Rust command (`curl ... | sh`). Use the Windows install command above instead.
+- If you see `failed to run 'cargo metadata' ... program not found`, Cargo is not installed or not on your PATH. Reopen your terminal after installing Rust and run `cargo --version`.
 
 ### Build the desktop app
 
