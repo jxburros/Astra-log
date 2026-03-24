@@ -1,15 +1,23 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
 import type { TroubleshootRequest } from './components/ChatPanel';
 import { SettingsModal, Settings } from './components/SettingsModal';
+import { ScratchPad } from './components/ScratchPad';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+
+/** Duration (ms) for the radial-wipe-in animation — must match CSS `animate-wipe-in`. */
+const WIPE_IN_DURATION = 600;
+/** Duration (ms) for the wipe fade-out — must match CSS `animate-wipe-out`. */
+const WIPE_OUT_DURATION = 300;
+/** Minimum Scratch Pad width (px) when Focus Mode is active. */
+const FOCUS_MODE_SCRATCH_MIN_WIDTH = 380;
 
 export default function App() {
   const [status, setStatus] = useState<Status>('idle');
@@ -38,6 +46,39 @@ export default function App() {
     }
     return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434/api/chat' };
   });
+
+  // ── Layout / workspace state (Phase 1) ────────────────────────────────────
+  /** Panel pixel widths — stored in sessionStorage so they survive hot-reloads. */
+  const [terminalWidth, setTerminalWidth] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_terminalWidth');
+    return v ? Number(v) : 280;
+  });
+  const [chatWidth, setChatWidth] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_chatWidth');
+    return v ? Number(v) : 360;
+  });
+  const [scratchWidth, setScratchWidth] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_scratchWidth');
+    return v ? Number(v) : 260;
+  });
+  /** Which panels are collapsed. */
+  const [terminalCollapsed, setTerminalCollapsed] = useState<boolean>(() =>
+    sessionStorage.getItem('layout_terminalCollapsed') === 'true'
+  );
+  const [chatCollapsed, setChatCollapsed] = useState<boolean>(() =>
+    sessionStorage.getItem('layout_chatCollapsed') === 'true'
+  );
+  const [scratchCollapsed, setScratchCollapsed] = useState<boolean>(() =>
+    sessionStorage.getItem('layout_scratchCollapsed') === 'true'
+  );
+  /** Focus / Zen mode: hides terminal + chat, maximises preview + scratch pad. */
+  const [focusMode, setFocusMode] = useState(false);
+  /** When true an intentional-destruction animation is playing. */
+  const [isDestroying, setIsDestroying] = useState(false);
+  /** Drives the "fade-out" phase of the destruction overlay. */
+  const [destroyFadeOut, setDestroyFadeOut] = useState(false);
+  /** Incremented to signal the ScratchPad to wipe its notes. */
+  const [scratchKey, setScratchKey] = useState(0);
   // Keep a ref so async boot callbacks always read the latest settings
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -55,6 +96,49 @@ export default function App() {
   const terminalOutputBufferRef = useRef<string>('');
   /** Incremented on each new project session; lets processZipFile detect stale calls. */
   const processSessionRef = useRef<number>(0);
+
+  // ── Panel drag-to-resize ───────────────────────────────────────────────────
+  /** Tracks an in-progress panel-drag operation. */
+  const dragRef = useRef<{ panel: 'terminal' | 'chat' | 'scratch' | null; startX: number; startWidth: number }>({
+    panel: null, startX: 0, startWidth: 0,
+  });
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      const { panel, startX, startWidth } = dragRef.current;
+      if (!panel) return;
+      const delta = e.clientX - startX;
+      if (panel === 'terminal') {
+        setTerminalWidth(Math.max(180, Math.min(520, startWidth + delta)));
+      } else if (panel === 'chat') {
+        setChatWidth(Math.max(240, Math.min(600, startWidth - delta)));
+      } else if (panel === 'scratch') {
+        setScratchWidth(Math.max(180, Math.min(520, startWidth - delta)));
+      }
+    };
+    const onMouseUp = () => {
+      if (dragRef.current.panel) {
+        dragRef.current.panel = null;
+        document.body.classList.remove('dragging-panel');
+      }
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
+  // ── Persist layout to sessionStorage ──────────────────────────────────────
+  useEffect(() => {
+    sessionStorage.setItem('layout_terminalWidth', String(terminalWidth));
+    sessionStorage.setItem('layout_chatWidth', String(chatWidth));
+    sessionStorage.setItem('layout_scratchWidth', String(scratchWidth));
+    sessionStorage.setItem('layout_terminalCollapsed', String(terminalCollapsed));
+    sessionStorage.setItem('layout_chatCollapsed', String(chatCollapsed));
+    sessionStorage.setItem('layout_scratchCollapsed', String(scratchCollapsed));
+  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed]);
 
   useEffect(() => {
     const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -90,6 +174,12 @@ export default function App() {
   const handleStartOver = useCallback(async () => {
     const confirmed = window.confirm('Start a new project? This will clear the current session.');
     if (!confirmed) return;
+
+    // ── Intentional-destruction animation ────────────────────────────────────
+    setIsDestroying(true);
+    setDestroyFadeOut(false);
+    // Wait for the wipe-in animation to complete
+    await new Promise(resolve => setTimeout(resolve, WIPE_IN_DURATION));
 
     // Invalidate any ongoing processZipFile async session
     processSessionRef.current++;
@@ -140,6 +230,16 @@ export default function App() {
     setChatKey(k => k + 1);
     // Force-remount the hidden file input so no previous file is retained
     setUploadInputKey(k => k + 1);
+    // Clear the scratch pad
+    setScratchKey(k => k + 1);
+    // Exit focus mode on reset
+    setFocusMode(false);
+
+    // Fade out the overlay
+    setDestroyFadeOut(true);
+    await new Promise(resolve => setTimeout(resolve, WIPE_OUT_DURATION));
+    setIsDestroying(false);
+    setDestroyFadeOut(false);
   }, []);
 
   const getProjectContext = async () => {
@@ -485,6 +585,18 @@ export default function App() {
     );
   }
 
+  // Helper: start a panel drag
+  const startDrag = (panel: 'terminal' | 'chat' | 'scratch', currentWidth: number) =>
+    (e: { preventDefault: () => void; clientX: number }) => {
+      e.preventDefault();
+      dragRef.current = { panel, startX: e.clientX, startWidth: currentWidth };
+      document.body.classList.add('dragging-panel');
+    };
+
+  // Collapsed tab shared style
+  const collapsedTab = 'flex flex-col items-center border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden';
+  const collapsedLabel = 'text-zinc-700 text-[10px] font-medium uppercase tracking-wider mt-1';
+
   return (
     <div 
       className="flex flex-col h-screen bg-[#09090b] text-zinc-200 font-sans relative"
@@ -499,6 +611,13 @@ export default function App() {
         }
       }}
     >
+      {/* ── Intentional-destruction overlay ─────────────────────────────────── */}
+      {isDestroying && (
+        <div
+          className={`absolute inset-0 z-[100] bg-[#09090b] pointer-events-none ${destroyFadeOut ? 'animate-wipe-out' : 'animate-wipe-in'}`}
+        />
+      )}
+
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm border-2 border-indigo-500 border-dashed m-4 rounded-3xl flex items-center justify-center pointer-events-none">
           <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border border-white/10">
@@ -515,7 +634,8 @@ export default function App() {
         onSave={handleSaveSettings}
       />
 
-      <header className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-600 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
             <Sparkles className="w-4 h-4 text-white" />
@@ -523,7 +643,8 @@ export default function App() {
           <h1 className="text-xl font-semibold tracking-wide text-white">NOVA<span className="text-white/40 font-light">/sandbox</span></h1>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Upload (idle only) */}
           {status === 'idle' && (
             <label className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-md cursor-pointer transition-all text-sm font-medium shadow-lg shadow-indigo-500/20">
               <Upload className="w-4 h-4" />
@@ -537,39 +658,40 @@ export default function App() {
               />
             </label>
           )}
-          
-          {status !== 'idle' && status !== 'error' && status !== 'ready' && !recoveryMessage && (
-            <div className="flex items-center gap-2 text-indigo-400 text-sm font-medium">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              {status.charAt(0).toUpperCase() + status.slice(1)}...
-            </div>
-          )}
 
-          {recoveryMessage && status !== 'ready' && status !== 'error' && (
-            <div className="flex items-center gap-2 text-amber-400 text-xs font-medium px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
-              <RefreshCw className="w-3 h-3 animate-spin shrink-0" />
-              {recoveryMessage}
-            </div>
-          )}
-          
-          {status === 'error' && (
-            <div className="flex items-center gap-2 text-rose-400 text-sm font-medium">
-              <AlertCircle className="w-4 h-4" />
-              Error
-            </div>
-          )}
-
-          {status === 'ready' && (
-            <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-              Running
-            </div>
-          )}
+          {/* ── Ambient status indicator (Phase 1.4) ── */}
+          {status !== 'idle' && (() => {
+            if (status === 'error') return (
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-flicker shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                <span className="text-rose-400 text-sm font-medium">Error</span>
+              </div>
+            );
+            if (status === 'ready') return (
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
+                <span className="text-emerald-400 text-sm font-medium">Running</span>
+              </div>
+            );
+            if (recoveryMessage) return (
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.7)]" />
+                <span className="text-amber-400 text-xs font-medium truncate max-w-[200px]">{recoveryMessage}</span>
+              </div>
+            );
+            // booting / installing / starting / mounting / uploading
+            return (
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(129,140,248,0.7)]" />
+                <span className="text-indigo-400 text-sm font-medium">{status.charAt(0).toUpperCase() + status.slice(1)}…</span>
+              </div>
+            );
+          })()}
 
           {status !== 'idle' && (
             <button
               onClick={handleStartOver}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 rounded-md cursor-pointer transition-all text-sm font-medium"
+              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 rounded-md cursor-pointer transition-all text-sm font-medium"
               title="Start a new project"
             >
               <FolderOpen className="w-4 h-4" />
@@ -577,7 +699,16 @@ export default function App() {
             </button>
           )}
 
-          <div className="w-px h-6 bg-white/10 mx-2"></div>
+          <div className="w-px h-5 bg-white/10" />
+
+          {/* Focus / Zen Mode toggle (Phase 1.3) */}
+          <button
+            onClick={() => setFocusMode(f => !f)}
+            className={`p-2 rounded-lg transition-colors ${focusMode ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            title={focusMode ? 'Exit Focus Mode' : 'Focus Mode — hide terminal & chat'}
+          >
+            {focusMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
 
           <button 
             onClick={() => setIsSettingsOpen(true)}
@@ -589,25 +720,65 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Panel: Terminal */}
-        <div className="w-80 min-w-[250px] border-r border-white/10 flex flex-col bg-black/40 backdrop-blur-sm">
-          <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-white/5 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-            <TerminalIcon className="w-3.5 h-3.5" />
-            Terminal
-          </div>
-          <div className="flex-1 p-2 overflow-hidden">
-            <TerminalComponent
-              onTerminalReady={handleTerminalReady}
-              onTerminalData={handleTerminalData}
-              statusMessage={recoveryMessage}
-            />
-          </div>
-        </div>
+      {/* ── Main workspace ───────────────────────────────────────────────────── */}
+      <main className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* Middle Panel: Preview */}
-        <div className="flex-1 flex flex-col bg-[#09090b] min-w-[300px]">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+        {/* ── Terminal Panel (Phase 1.1 / 1.3) ────────────────────────────── */}
+        {!focusMode && !terminalCollapsed ? (
+          <div
+            style={{ width: terminalWidth }}
+            className="flex flex-col border-r border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 shrink-0">
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                <TerminalIcon className="w-3.5 h-3.5" />
+                Terminal
+              </div>
+              <button
+                onClick={() => setTerminalCollapsed(true)}
+                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                title="Collapse terminal"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="flex-1 p-2 overflow-hidden min-h-0">
+              <TerminalComponent
+                onTerminalReady={handleTerminalReady}
+                onTerminalData={handleTerminalData}
+                statusMessage={recoveryMessage}
+              />
+            </div>
+          </div>
+        ) : !focusMode ? (
+          /* Collapsed terminal tab */
+          <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
+            <button
+              onClick={() => setTerminalCollapsed(false)}
+              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+              title="Expand terminal"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <span className={collapsedLabel} style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+              Terminal
+            </span>
+          </div>
+        ) : null}
+
+        {/* Drag divider: Terminal ↔ Preview */}
+        {!focusMode && !terminalCollapsed && (
+          <div
+            className="w-1 shrink-0 bg-white/5 hover:bg-indigo-500/40 active:bg-indigo-500/60 cursor-col-resize transition-colors flex items-center justify-center group"
+            onMouseDown={startDrag('terminal', terminalWidth)}
+          >
+            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        {/* ── Preview Panel ────────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">
             <div className="flex items-center gap-2">
               <Globe className="w-3.5 h-3.5" />
               Preview
@@ -618,7 +789,7 @@ export default function App() {
                 <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
-                <div className="w-px h-4 bg-white/10 mx-1"></div>
+                <div className="w-px h-4 bg-white/10 mx-1" />
                 <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
                 <input 
                   type="text" 
@@ -695,7 +866,7 @@ export default function App() {
                     <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
                       <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
                     </div>
-                    <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment...</p>
+                    <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
                   </>
                 )}
               </div>
@@ -703,16 +874,98 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right Panel: AI Chat */}
-        <div className="w-96 min-w-[300px] flex flex-col">
-          <ChatPanel
-            resetKey={chatKey}
-            settings={settings}
-            getProjectContext={getProjectContext}
-            troubleshootRequest={troubleshootRequest}
-            onTroubleshootHandled={() => setTroubleshootRequest(null)}
-          />
-        </div>
+        {/* Drag divider: Preview ↔ Chat */}
+        {!focusMode && !chatCollapsed && (
+          <div
+            className="w-1 shrink-0 bg-white/5 hover:bg-indigo-500/40 active:bg-indigo-500/60 cursor-col-resize transition-colors flex items-center justify-center group"
+            onMouseDown={startDrag('chat', chatWidth)}
+          >
+            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        {/* ── Chat Panel (Phase 1.1) ────────────────────────────────────────── */}
+        {!focusMode && !chatCollapsed ? (
+          <div
+            style={{ width: chatWidth }}
+            className="flex flex-col shrink-0 overflow-hidden border-l border-white/10"
+          >
+            <ChatPanel
+              resetKey={chatKey}
+              settings={settings}
+              getProjectContext={getProjectContext}
+              troubleshootRequest={troubleshootRequest}
+              onTroubleshootHandled={() => setTroubleshootRequest(null)}
+              onCollapse={() => setChatCollapsed(true)}
+            />
+          </div>
+        ) : !focusMode ? (
+          /* Collapsed chat tab */
+          <div className={`${collapsedTab} w-8 border-l py-3 gap-2`}>
+            <button
+              onClick={() => setChatCollapsed(false)}
+              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+              title="Expand chat"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>
+              Chat
+            </span>
+          </div>
+        ) : null}
+
+        {/* Drag divider: Chat ↔ Scratch Pad */}
+        {!scratchCollapsed && (
+          <div
+            className="w-1 shrink-0 bg-white/5 hover:bg-amber-500/30 active:bg-amber-500/50 cursor-col-resize transition-colors flex items-center justify-center group"
+            onMouseDown={startDrag('scratch', scratchWidth)}
+          >
+            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+        )}
+
+        {/* ── Scratch Pad Panel (Phase 1.2) ─────────────────────────────────── */}
+        {!scratchCollapsed ? (
+          <div
+            style={{ width: focusMode ? Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) : scratchWidth }}
+            className="flex flex-col border-l border-white/10 bg-zinc-950/70 backdrop-blur-sm shrink-0 overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 shrink-0">
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                <PenLine className="w-3.5 h-3.5 text-amber-400" />
+                {focusMode ? (
+                  <span className="text-amber-300">Scratch Pad</span>
+                ) : (
+                  'Scratch Pad'
+                )}
+              </div>
+              <button
+                onClick={() => setScratchCollapsed(true)}
+                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                title="Collapse scratch pad"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <ScratchPad resetKey={scratchKey} />
+          </div>
+        ) : (
+          /* Collapsed scratch pad tab */
+          <div className={`${collapsedTab} w-8 border-l py-3 gap-2`}>
+            <button
+              onClick={() => setScratchCollapsed(false)}
+              className="p-1 text-zinc-600 hover:text-amber-400 transition-colors"
+              title="Expand scratch pad"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className={`${collapsedLabel} text-amber-900`} style={{ writingMode: 'vertical-rl' }}>
+              Notes
+            </span>
+          </div>
+        )}
+
       </main>
     </div>
   );

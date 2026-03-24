@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot } from 'lucide-react';
+import { Send, Sparkles, Loader2, Bot, ChevronRight } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 interface Message {
@@ -21,6 +21,8 @@ interface Props {
   onTroubleshootHandled?: () => void;
   /** Increment this value to reset the chat history for a new project session. */
   resetKey?: number;
+  /** Called when the user clicks the collapse button in the panel header. */
+  onCollapse?: () => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
@@ -31,7 +33,7 @@ When they're ready for a plan, put together a clear, comprehensive, step-by-step
 
 const INITIAL_MESSAGE: Message = { role: 'assistant', content: "Hey there! Ready to build something great? Share your ideas — big or small — and let's start mapping out what your app could become. Whenever you're ready, we can turn it all into a solid implementation plan." };
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey }: Props) {
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -170,6 +172,15 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           <Bot className="w-3.5 h-3.5 text-indigo-400" />
           AI Brainstorming
         </div>
+        {onCollapse && (
+          <button
+            onClick={onCollapse}
+            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+            title="Collapse chat"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
