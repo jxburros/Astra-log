@@ -10,17 +10,16 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "NOVA Sandbox",
-        "width": 1440,
-        "height": 900,
-        "resizable": true
-      }
-    ]
+    "windows": []
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": ["nsis", "app", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico",
+      "icons/icon.icns"
+    ]
   }
 }
