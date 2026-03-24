@@ -51,6 +51,8 @@ export default function App() {
   const bootSucceededRef = useRef<boolean>(false);
   /** Rolling buffer of the last 5 000 chars of terminal output for AI context. */
   const terminalOutputBufferRef = useRef<string>('');
+  /** Incremented on each new project session; lets processZipFile detect stale calls. */
+  const processSessionRef = useRef<number>(0);
 
   useEffect(() => {
     const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -66,7 +68,7 @@ export default function App() {
 
   const handleTerminalReady = useCallback((term: Terminal) => {
     terminalRef.current = term;
-    term.writeln('\x1b[34m[System]\x1b[0m Terminal initialized. Waiting for zip upload...');
+    term.writeln('\x1b[34m[System]\x1b[0m Terminal ready — drop in a zip to kick things off.');
   }, []);
 
   const handleTerminalData = useCallback((data: string) => {
@@ -86,6 +88,9 @@ export default function App() {
   const handleStartOver = useCallback(async () => {
     const confirmed = window.confirm('Start a new project? This will clear the current session.');
     if (!confirmed) return;
+
+    // Invalidate any ongoing processZipFile async session
+    processSessionRef.current++;
 
     // Unsubscribe from the previous server-ready listener
     if (serverReadyUnsubscribeRef.current) {
@@ -114,7 +119,7 @@ export default function App() {
     // Clear the terminal and show the welcome message
     if (terminalRef.current) {
       terminalRef.current.clear();
-      terminalRef.current.writeln('\x1b[34m[System]\x1b[0m Terminal initialized. Waiting for zip upload...');
+      terminalRef.current.writeln('\x1b[34m[System]\x1b[0m Terminal ready — drop in a zip to kick things off.');
     }
 
     // Reset boot tracking refs
@@ -194,17 +199,17 @@ export default function App() {
    */
   const triggerAIFallback = (packageJson: string | null) => {
     setStatus('error');
-    setErrorMsg('Could not start the application automatically.');
+    setErrorMsg("Couldn't get the app started automatically.");
     setRecoveryMessage(null);
-    writeToTerminal('\r\n\x1b[31m[System]\x1b[0m All automatic boot attempts failed.\r\n');
+    writeToTerminal('\r\n\x1b[31m[System]\x1b[0m Couldn\'t get the app started automatically.\r\n');
 
     const current = settingsRef.current;
     const hasAIAccess = current.provider === 'local' || !!current.apiKey;
 
     if (hasAIAccess) {
-      writeToTerminal('\x1b[34m[System]\x1b[0m Triggering AI troubleshooting...\r\n');
+      writeToTerminal('\x1b[34m[System]\x1b[0m Passing this over to the AI assistant for a closer look...\r\n');
     } else {
-      writeToTerminal('\x1b[33m[System]\x1b[0m Tip: Connect an AI provider in Settings for troubleshooting assistance.\r\n');
+      writeToTerminal('\x1b[33m[System]\x1b[0m Pro tip: Hook up an AI provider in Settings and let it help diagnose the issue.\r\n');
     }
 
     setTroubleshootRequest({
@@ -306,11 +311,17 @@ export default function App() {
   };
 
   const processZipFile = async (file: File) => {
+    processSessionRef.current++;
+    const sessionId = processSessionRef.current;
+    const isCurrentSession = () => sessionId === processSessionRef.current;
+
     try {
       setStatus('uploading');
       writeToTerminal(`\r\n\x1b[34m[System]\x1b[0m Parsing zip file: ${file.name}...\r\n`);
 
       const { tree, packageJson, readme } = await parseZipToTree(file);
+      if (!isCurrentSession()) return;
+
       // Reset boot tracking for this new session
       bootSucceededRef.current = false;
       terminalOutputBufferRef.current = '';
@@ -333,6 +344,8 @@ export default function App() {
       if (!webcontainerRef.current) {
         webcontainerRef.current = await WebContainer.boot();
       }
+      if (!isCurrentSession()) return;
+
       const wc = webcontainerRef.current;
       writeToTerminal(`\x1b[32m[System]\x1b[0m WebContainer booted.\r\n`);
 
@@ -346,8 +359,11 @@ export default function App() {
       } catch (e) {
         console.warn('Failed to clear previous project files:', e);
       }
+      if (!isCurrentSession()) return;
 
       await wc.mount(tree);
+      if (!isCurrentSession()) return;
+
       writeToTerminal(`\x1b[32m[System]\x1b[0m Files mounted.\r\n`);
 
       // Unsubscribe any previous server-ready listener to avoid stale callbacks
@@ -375,6 +391,8 @@ export default function App() {
           rows: terminalRef.current?.rows || 24,
         }
       });
+      if (!isCurrentSession()) { shellProcess.kill(); return; }
+
       shellProcessRef.current = shellProcess;
 
       shellProcess.output.pipeTo(
@@ -397,11 +415,14 @@ export default function App() {
         write(data) { writeToTerminal(data); }
       }));
       const installExit = await installProc.exit;
+      // Session check after awaiting exit: the install has already completed, so
+      // there is nothing to kill — we just skip the rest of the boot sequence.
+      if (!isCurrentSession()) return;
 
       if (installExit !== 0) {
         setStatus('error');
-        setErrorMsg('npm install failed. Check the terminal for details.');
-        writeToTerminal('\r\n\x1b[31m[System]\x1b[0m npm install failed.\r\n');
+        setErrorMsg('npm install ran into some issues — check the terminal for details.');
+        writeToTerminal('\r\n\x1b[31m[System]\x1b[0m npm install failed — check above for details.\r\n');
         return;
       }
       writeToTerminal(`\x1b[32m[System]\x1b[0m Dependencies installed.\r\n`);
@@ -411,6 +432,7 @@ export default function App() {
       await runBootHierarchy(wc, bootCmds, packageJson);
 
     } catch (err: any) {
+      if (!isCurrentSession()) return;
       console.error(err);
       setStatus('error');
       setErrorMsg(err.message || 'An unknown error occurred');
@@ -454,7 +476,7 @@ export default function App() {
         e.preventDefault();
         setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
-        if (file && file.name.endsWith('.zip')) {
+        if (file && file.name.endsWith('.zip') && status === 'idle') {
           processZipFile(file);
         }
       }}
@@ -463,7 +485,7 @@ export default function App() {
         <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm border-2 border-indigo-500 border-dashed m-4 rounded-3xl flex items-center justify-center pointer-events-none">
           <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border border-white/10">
             <Upload className="w-16 h-16 text-indigo-400 animate-bounce" />
-            <h2 className="text-2xl font-bold text-white tracking-tight">Drop zip file to preview</h2>
+            <h2 className="text-2xl font-bold text-white tracking-tight">Drop your zip here to get started</h2>
           </div>
         </div>
       )}
@@ -640,7 +662,7 @@ export default function App() {
                     <div className="w-20 h-20 mb-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
                       <Upload className="w-8 h-8 text-zinc-400" />
                     </div>
-                    <p className="text-lg tracking-wide">Upload a zip file to start the preview</p>
+                    <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
                   </>
                 ) : status === 'error' ? (
                   <>
