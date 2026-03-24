@@ -37,7 +37,10 @@ export default function App() {
   const serverReadyUnsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    setIsIsolated(window.crossOriginIsolated);
+    const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
+    const isTauriRuntime = typeof tauriWindow.__TAURI__ !== 'undefined' || typeof tauriWindow.__TAURI_INTERNALS__ !== 'undefined';
+
+    setIsIsolated(window.crossOriginIsolated || isTauriRuntime);
   }, []);
 
   const handleSaveSettings = (newSettings: Settings) => {
