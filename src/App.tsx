@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, Play, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles } from 'lucide-react';
+import { Upload, Play, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen } from 'lucide-react';
 import { parseZipToTree } from './lib/zipParser';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
@@ -33,6 +33,8 @@ export default function App() {
   const terminalRef = useRef<Terminal | null>(null);
   const webcontainerRef = useRef<WebContainer | null>(null);
   const shellWriterRef = useRef<WritableStreamDefaultWriter<string> | null>(null);
+  const shellProcessRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
+  const serverReadyUnsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     setIsIsolated(window.crossOriginIsolated);
@@ -59,6 +61,42 @@ export default function App() {
       terminalRef.current.write(data);
     }
   };
+
+  const handleStartOver = useCallback(async () => {
+    const confirmed = window.confirm('Start a new project? This will clear the current session.');
+    if (!confirmed) return;
+
+    // Unsubscribe from the previous server-ready listener
+    if (serverReadyUnsubscribeRef.current) {
+      serverReadyUnsubscribeRef.current();
+      serverReadyUnsubscribeRef.current = null;
+    }
+
+    // Kill the running shell process
+    if (shellProcessRef.current) {
+      try { shellProcessRef.current.kill(); } catch (e) { console.warn('Failed to kill shell process:', e); }
+      shellProcessRef.current = null;
+    }
+
+    // Release the shell writer
+    if (shellWriterRef.current) {
+      try { await shellWriterRef.current.close(); } catch (e) { console.warn('Failed to close shell writer:', e); }
+      shellWriterRef.current = null;
+    }
+
+    // Clear the terminal and show the welcome message
+    if (terminalRef.current) {
+      terminalRef.current.clear();
+      terminalRef.current.writeln('\x1b[34m[System]\x1b[0m Terminal initialized. Waiting for zip upload...');
+    }
+
+    // Reset all state
+    setStatus('idle');
+    setErrorMsg('');
+    setPreviewUrl(null);
+    setPreviewBaseUrl('');
+    setBrowserPath('/');
+  }, []);
 
   const getProjectContext = async () => {
     if (!webcontainerRef.current) return "No project loaded yet.";
@@ -127,7 +165,13 @@ export default function App() {
       await wc.mount(tree);
       writeToTerminal(`\x1b[32m[System]\x1b[0m Files mounted.\r\n`);
 
-      wc.on('server-ready', (port, url) => {
+      // Unsubscribe any previous server-ready listener to avoid stale callbacks
+      if (serverReadyUnsubscribeRef.current) {
+        serverReadyUnsubscribeRef.current();
+        serverReadyUnsubscribeRef.current = null;
+      }
+
+      serverReadyUnsubscribeRef.current = wc.on('server-ready', (port, url) => {
         writeToTerminal(`\r\n\x1b[32m[System]\x1b[0m Server ready at ${url}\r\n`);
         setPreviewBaseUrl(url);
         setPreviewUrl(url);
@@ -143,6 +187,7 @@ export default function App() {
           rows: terminalRef.current?.rows || 24,
         }
       });
+      shellProcessRef.current = shellProcess;
 
       shellProcess.output.pipeTo(
         new WritableStream({
@@ -264,6 +309,17 @@ export default function App() {
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
               Running
             </div>
+          )}
+
+          {status !== 'idle' && (
+            <button
+              onClick={handleStartOver}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 rounded-md cursor-pointer transition-all text-sm font-medium"
+              title="Start a new project"
+            >
+              <FolderOpen className="w-4 h-4" />
+              New Project
+            </button>
           )}
 
           <div className="w-px h-6 bg-white/10 mx-2"></div>
