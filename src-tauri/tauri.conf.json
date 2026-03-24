@@ -10,14 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-        "title": "NOVA Sandbox",
-        "width": 1440,
-        "height": 900,
-        "resizable": true
-      }
-    ]
+    "windows": []
   },
   "bundle": {
     "active": true,
