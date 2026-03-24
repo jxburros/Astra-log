@@ -23,14 +23,13 @@ interface Props {
   resetKey?: number;
 }
 
-const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing. 
-The user will share ideas, long or short. 
-Acknowledge their ideas briefly and encouragingly. 
-Ask clarifying questions ONLY if absolutely necessary to understand their intent. 
-Do NOT write code yet. Your goal is to help them gather thoughts without disrupting their flow.
-When they ask for an implementation plan, provide a comprehensive, step-by-step guide based on all the ideas discussed. Organize it into logical steps, architecture changes, and required components.`;
+const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
+When the user shares ideas — long or short — acknowledge them with genuine curiosity and a bit of encouragement.
+Ask clarifying questions only when they're truly needed to understand the full picture.
+Hold off on writing code for now; the goal is to help them think things through and capture their ideas.
+When they're ready for a plan, put together a clear, comprehensive, step-by-step implementation guide based on everything discussed — covering architecture changes, required components, and logical sequencing.`;
 
-const INITIAL_MESSAGE: Message = { role: 'assistant', content: 'Hello! I am here to help you brainstorm ideas for your app. Share your thoughts, and when you are ready, we can generate a full implementation plan.' };
+const INITIAL_MESSAGE: Message = { role: 'assistant', content: "Hey there! Ready to build something great? Share your ideas — big or small — and let's start mapping out what your app could become. Whenever you're ready, we can turn it all into a solid implementation plan." };
 
 export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
@@ -63,14 +62,14 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
     if (!hasAIAccess) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: "We could not start the app automatically. Please check your package.json or connect an AI provider in Settings for troubleshooting assistance."
+        content: "Heads up — the app didn't start automatically. Worth checking your package.json to make sure the start scripts are set up correctly. You can also connect an AI provider in Settings and I'll dig into it with you."
       }]);
       onTroubleshootHandled?.();
       return;
     }
 
     const { packageJson, terminalErrors } = troubleshootRequest;
-    const prompt = `[System Request] The application failed to start automatically. Please analyze the following and suggest a fix:\n\n**package.json:**\n\`\`\`json\n${packageJson || '(not available)'}\n\`\`\`\n\n**Terminal Error Output:**\n\`\`\`\n${terminalErrors || '(no output captured)'}\n\`\`\`\n\nPlease identify the issue and provide specific commands or configuration changes to resolve the startup problem.`;
+    const prompt = `[Auto-Request] The app didn't start on its own — let's figure out why. Here's what I've got:\n\n**package.json:**\n\`\`\`json\n${packageJson || '(not available)'}\n\`\`\`\n\n**Terminal Output:**\n\`\`\`\n${terminalErrors || '(no output captured)'}\n\`\`\`\n\nWhat looks off, and what should we try first to get it running?`;
     handleSend(prompt, true);
     onTroubleshootHandled?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,10 +110,10 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           })
         });
         const data = await response.json();
-        reply = data.message?.content || 'Error: No response from local model.';
+        reply = data.message?.content || 'No response from the local model — is it running?';
       } else {
         if (!settings.apiKey) {
-          throw new Error('API Key is missing. Please add it in Settings.');
+          throw new Error('API key is missing — head to Settings to add one.');
         }
 
         // Cloud proxy
@@ -138,7 +137,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           } catch (e) {
             // Not JSON, probably an HTML error page
             if (response.status === 413) {
-              errorMessage = "Project context is too large. Please reduce the number of files.";
+              errorMessage = "The project context is a bit too large — try reducing the number of files.";
             } else {
               errorMessage = `Server error ${response.status}: ${text.substring(0, 100)}...`;
             }
@@ -160,7 +159,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
   };
 
   const handleGeneratePlan = () => {
-    const planPrompt = "Based on all the ideas we've discussed above, please generate a comprehensive implementation plan. Organize it into logical steps, architecture changes, and required components.";
+    const planPrompt = "Based on everything we've talked through, can you put together a comprehensive implementation plan? Break it down into clear steps, any architecture changes needed, and the key components to build.";
     handleSend(planPrompt, true);
   };
 
