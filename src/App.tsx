@@ -26,6 +26,8 @@ export default function App() {
   /** Payload forwarded to ChatPanel to trigger automated AI troubleshooting. */
   const [troubleshootRequest, setTroubleshootRequest] = useState<TroubleshootRequest | null>(null);
   
+  /** Incremented each time a new project session starts to force-reset the ChatPanel. */
+  const [chatKey, setChatKey] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem('ai_settings');
@@ -127,6 +129,8 @@ export default function App() {
     setBrowserPath('/');
     setRecoveryMessage(null);
     setTroubleshootRequest(null);
+    // Force-remount ChatPanel to clear previous conversation
+    setChatKey(k => k + 1);
   }, []);
 
   const getProjectContext = async () => {
@@ -315,6 +319,9 @@ export default function App() {
 
       writeToTerminal(`\x1b[32m[System]\x1b[0m Zip parsed successfully.\r\n`);
 
+      // Reset chat for the new project session
+      setChatKey(k => k + 1);
+
       // Build the multi-tier boot command hierarchy from metadata
       const scripts = parsePackageJsonScripts(packageJson || '');
       const readmeCmds = extractCommandsFromReadme(readme || '');
@@ -331,6 +338,15 @@ export default function App() {
 
       setStatus('mounting');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Mounting files...\r\n`);
+
+      // Clear any files from a previous project before mounting the new tree
+      try {
+        const existingEntries = await wc.fs.readdir('.');
+        await Promise.all(existingEntries.map(entry => wc.fs.rm(entry, { recursive: true })));
+      } catch (e) {
+        console.warn('Failed to clear previous project files:', e);
+      }
+
       await wc.mount(tree);
       writeToTerminal(`\x1b[32m[System]\x1b[0m Files mounted.\r\n`);
 
@@ -649,6 +665,7 @@ export default function App() {
         {/* Right Panel: AI Chat */}
         <div className="w-96 min-w-[300px] flex flex-col">
           <ChatPanel
+            resetKey={chatKey}
             settings={settings}
             getProjectContext={getProjectContext}
             troubleshootRequest={troubleshootRequest}

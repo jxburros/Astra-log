@@ -19,6 +19,8 @@ interface Props {
   troubleshootRequest?: TroubleshootRequest | null;
   /** Called once the troubleshoot request has been processed so the parent can clear it. */
   onTroubleshootHandled?: () => void;
+  /** Increment this value to reset the chat history for a new project session. */
+  resetKey?: number;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing. 
@@ -28,13 +30,21 @@ Ask clarifying questions ONLY if absolutely necessary to understand their intent
 Do NOT write code yet. Your goal is to help them gather thoughts without disrupting their flow.
 When they ask for an implementation plan, provide a comprehensive, step-by-step guide based on all the ideas discussed. Organize it into logical steps, architecture changes, and required components.`;
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hello! I am here to help you brainstorm ideas for your app. Share your thoughts, and when you are ready, we can generate a full implementation plan.' }
-  ]);
+const INITIAL_MESSAGE: Message = { role: 'assistant', content: 'Hello! I am here to help you brainstorm ideas for your app. Share your thoughts, and when you are ready, we can generate a full implementation plan.' };
+
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey }: Props) {
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Reset chat history whenever a new project session starts
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    setMessages([INITIAL_MESSAGE]);
+    setInput('');
+    setIsTyping(false);
+  }, [resetKey]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
