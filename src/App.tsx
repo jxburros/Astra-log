@@ -28,6 +28,8 @@ export default function App() {
   
   /** Incremented each time a new project session starts to force-reset the ChatPanel. */
   const [chatKey, setChatKey] = useState(0);
+  /** Incremented to fully reset the hidden upload input when starting a new project. */
+  const [uploadInputKey, setUploadInputKey] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem('ai_settings');
@@ -136,6 +138,8 @@ export default function App() {
     setTroubleshootRequest(null);
     // Force-remount ChatPanel to clear previous conversation
     setChatKey(k => k + 1);
+    // Force-remount the hidden file input so no previous file is retained
+    setUploadInputKey(k => k + 1);
   }, []);
 
   const getProjectContext = async () => {
@@ -441,8 +445,11 @@ export default function App() {
   };
 
   const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (status !== 'idle') return;
     const file = event.target.files?.[0];
     if (!file) return;
+    // Clear the input immediately so selecting the same file again still triggers onChange
+    event.target.value = '';
     await processZipFile(file);
   };
 
@@ -511,6 +518,7 @@ export default function App() {
               <Upload className="w-4 h-4" />
               Upload Zip
               <input 
+                key={uploadInputKey}
                 type="file" 
                 accept=".zip" 
                 className="hidden" 
