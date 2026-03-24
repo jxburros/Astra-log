@@ -50,3 +50,33 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 npm run build
 npm start
 ```
+
+## Desktop Installation (Tauri v2)
+
+If you want to run NOVA/sandbox as a desktop application and produce a native installer (`.exe`, `.app`, etc.), you can build it with Tauri v2.
+
+### Prerequisites
+
+1. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
+2. Install the Rust toolchain (required by Tauri):
+   ```bash
+   curl https://sh.rustup.rs -sSf | sh
+   ```
+   Then restart your terminal so `cargo` is available.
+
+### Build the desktop app
+
+```bash
+npm run desktop:build
+```
+
+The generated desktop bundles/installers will be created under `src-tauri/target/release/bundle/`.
+
+### Run in desktop dev mode
+
+```bash
+npm run desktop:dev
+```
