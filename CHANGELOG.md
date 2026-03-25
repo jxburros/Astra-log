@@ -1,6 +1,12 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Phase 3.1 — Welcome Modal**: Implemented one-time splash screen (`WelcomeModal.tsx`) that explains Zero Persistence and Consultant-Only core principles; shown once on first load (tracked via `localStorage.astra_welcome_seen`); provides "Take a quick tour" or "Skip for now" actions
+- **Phase 3.1 — Workspace Tour**: Implemented 3-step guided tour overlay (`WorkspaceTour.tsx`) using SVG spotlight cutout; highlights Terminal (Ingestion), Preview (Output), and Scratch Pad (Private Thoughts) with step indicators and contextual tooltip cards; accessible from the Welcome Modal
+- **Phase 3.2 — In-App Help Guide**: Implemented `HelpGuide.tsx` modal accessible via a new `?` (`HelpCircle`) icon in the app header; contains a keyboard shortcuts cheat sheet (`Ctrl + .`, `Ctrl + Shift + K`, `Cmd/Ctrl + K`) and four workflow tips covering the Scratch Pad, ZIP ingestion, Stage for AI, and session reset
+- Added `data-tour` attributes to Terminal, Preview, and Scratch Pad panels in the standard layout to enable SVG-spotlight positioning in the tour
+
+## 2026-03-25 - GitHub Copilot
 - **Phase 2.1 — Concise Mode Toggle**: Added a ⚡ toggle in the ChatPanel header that forces bullet-point-only, max-5-item AI responses with no preamble; active state highlighted in amber; preference persisted to sessionStorage
 - **Phase 2.2 — Suggested Responses**: Quick-tap reply buttons now appear below action chips on the last AI message — `Yes` / `No` (indigo style) when the response ends with a question, and `Proceed` / `Explain further` (neutral style) as universal contextual follow-ups
 - **Phase 2.2 — Draft-to-Chat Integration**: Added "Stage for AI" (↗) button to the ScratchPad toolbar; clicking it stages current notes to be prepended to the next chat message; an amber banner in ChatPanel confirms staging and lets the user discard before sending; staged notes cleared automatically once consumed or on session reset; all ScratchPad and ChatPanel instances across layouts wired up
