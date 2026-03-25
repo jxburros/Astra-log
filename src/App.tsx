@@ -53,9 +53,12 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem('ai_settings');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try {
+        const parsed = JSON.parse(saved);
+        return { model: '', ...parsed };
+      } catch (e) {}
     }
-    return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434/api/chat' };
+    return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434/api/chat', model: 'gemini-2.5-flash' };
   });
 
   // ── Layout / workspace state (Phase 1) ────────────────────────────────────

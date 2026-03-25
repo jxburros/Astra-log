@@ -2,6 +2,32 @@ import express from "express";
 import net from "net";
 import path from "path";
 
+const FALLBACK_MODELS: Record<string, { id: string; name: string }[]> = {
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'o1', name: 'o1' },
+    { id: 'o1-mini', name: 'o1 Mini' },
+    { id: 'o3-mini', name: 'o3 Mini' },
+  ],
+  anthropic: [
+    { id: 'claude-opus-4-5', name: 'Claude Opus 4.5' },
+    { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+    { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+  ],
+  gemini: [
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+  ],
+};
+
 function findAvailablePort(preferred: number): Promise<number> {
   return new Promise((resolve) => {
     const server = net.createServer();
@@ -43,9 +69,68 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  app.get("/api/models", async (req, res) => {
+    const { provider, apiKey } = req.query as { provider: string; apiKey?: string };
+
+    if (!provider || !FALLBACK_MODELS[provider]) {
+      return res.status(400).json({ error: "Invalid provider" });
+    }
+
+    if (!apiKey) {
+      return res.json({ models: FALLBACK_MODELS[provider], fallback: true });
+    }
+
+    try {
+      let models: { id: string; name: string }[] = [];
+
+      if (provider === "openai") {
+        const response = await fetch("https://api.openai.com/v1/models", {
+          headers: { "Authorization": `Bearer ${apiKey}` }
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        models = (data.data as any[])
+          .filter(m => /^(gpt-|o1|o3|o4)/.test(m.id) && !m.id.includes('audio') && !m.id.includes('realtime') && !m.id.includes('instruct'))
+          .sort((a, b) => b.created - a.created)
+          .map(m => ({ id: m.id, name: m.id }));
+      } else if (provider === "anthropic") {
+        const response = await fetch("https://api.anthropic.com/v1/models", {
+          headers: {
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+          }
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(typeof data.error === 'string' ? data.error : data.error.message);
+        models = (data.data as any[]).map(m => ({ id: m.id, name: m.display_name || m.id }));
+      } else if (provider === "gemini") {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+        );
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        models = (data.models as any[])
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent') && !m.name.includes('embedding') && !m.name.includes('aqa'))
+          .map(m => ({
+            id: m.name.replace('models/', ''),
+            name: m.displayName || m.name.replace('models/', '')
+          }));
+      }
+
+      if (models.length === 0) {
+        return res.json({ models: FALLBACK_MODELS[provider], fallback: true });
+      }
+
+      res.json({ models, fallback: false });
+    } catch (error: any) {
+      console.error("Models fetch error:", error.message);
+      res.json({ models: FALLBACK_MODELS[provider], fallback: true });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
-      const { provider, apiKey, messages, systemPrompt } = req.body;
+      const { provider, apiKey, model, messages, systemPrompt } = req.body;
       
       if (!apiKey && provider !== 'local') {
         return res.status(400).json({ error: "API key is required" });
@@ -61,7 +146,7 @@ async function startServer() {
             "Authorization": `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: "gpt-4o",
+            model: model || "gpt-4o",
             messages: [
               { role: "system", content: systemPrompt },
               ...messages
@@ -80,7 +165,7 @@ async function startServer() {
             "anthropic-version": "2023-06-01"
           },
           body: JSON.stringify({
-            model: "claude-3-5-sonnet-20240620",
+            model: model || "claude-3-5-sonnet-20241022",
             max_tokens: 4096,
             system: systemPrompt,
             messages: messages.map((m: any) => ({ role: m.role, content: m.content }))
@@ -95,7 +180,8 @@ async function startServer() {
           parts: [{ text: m.content }]
         }));
         
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const geminiModel = model || "gemini-2.5-flash";
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
