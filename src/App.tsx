@@ -184,6 +184,7 @@ export default function App() {
     const onTouchMove = (e: TouchEvent) => {
       const { panel, startX, startY, startWidth } = dragRef.current;
       if (!panel) return;
+      e.preventDefault();
       const touch = e.touches[0];
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
