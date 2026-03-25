@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-03-25 - Codex
+- Simplified the Chat panel controls by removing the standalone "Generate Implementation Plan" action and consolidating artifact generation into a compact "Create Artifact" button that points to multi-style, multi-format export.
+- Reduced Chat action button footprint by making both "Create Artifact" and "Review App" compact controls while keeping text readable.
+- Updated AI quick-response behavior so buttons now appear only when the assistant asks a direct question and are dynamically generated per-question via machine-readable reply suggestions.
+- Shortened the initial assistant greeting message to: "What do you see in the app?"
+- Updated README feature descriptions to match the new chat control layout and dynamic quick-response behavior.
+
 ## 2026-03-26 - GitHub Copilot
 - **Standard layout**: Replaced horizontal side-by-side Chat+Scratch right panel with a vertical stack (Chat top / Scratch bottom, swappable); added `chatPanelHeight` state and horizontal drag divider (`GripHorizontal`) to resize the split
 - **Custom Layout mode**: Added new `custom` layout preset (4th button in header switcher, `LayoutGrid` icon) allowing free arrangement of Terminal, Preview, Chat, and Scratch panels across resizable columns and rows
