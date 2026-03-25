@@ -1,5 +1,5 @@
 Core Identity: The Transient Workspace
-The platform is a specialized, "Little Previewer" and Transient Workspace designed for the rapid exploration, validation, and architectural planning of web applications. It operates on the core principle that the value of a developer’s session lies in the high-fidelity insights and plans gained, not the files saved. By combining an in-browser Node.js sandbox with context-aware AI, it allows users to move from a raw source file to a running preview in seconds, completely bypassing the "technical tax" of local environment configuration.
+The platform is a specialized, App Previewer and Transient Workspace designed for the rapid exploration, validation, and architectural planning of web applications. It operates on the core principle that the value of a developer’s session lies in the high-fidelity insights and plans gained, not the files saved. By combining an in-browser Node.js sandbox with context-aware AI, it allows users to move from a raw source file to a running preview in seconds, completely bypassing the "technical tax" of local environment configuration.
 
 The "Little Previewer" Concept: At its heart, the app is a high-speed engine for viewing and testing projects without the commitment of a permanent setup.
 
