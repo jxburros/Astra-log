@@ -66,10 +66,6 @@ export function ExportModal({
   const [compareB, setCompareB] = useState<string>('');
   const [includeScratchPad, setIncludeScratchPad] = useState(false);
 
-  if (!isOpen) return null;
-
-  const sessionDate = new Date();
-
   const exportOptions = useMemo(
     () => ({
       style: exportStyle,
@@ -78,6 +74,10 @@ export function ExportModal({
     }),
     [exportStyle, includeScratchPad, scratchPadContent],
   );
+
+  if (!isOpen) return null;
+
+  const sessionDate = new Date();
 
   const handleDownload = (format: FileFormat) => {
     const base = `astra-log-${STYLE_FILENAME[exportStyle]}-${new Date().toISOString().slice(0, 10)}`;
