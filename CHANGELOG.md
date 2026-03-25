@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-03-25 - GitHub Copilot
+- **Phase 1.1 — Multi-Configuration Layout Engine**: Added three switchable layout presets (`standard`, `architect`, `zen-focus`) with a header Layout Switcher (LayoutDashboard / PanelBottom / Maximize2 icons)
+- **Architect layout**: CSS-grid workspace — Preview + Chat side-by-side on top, full-width Terminal row on the bottom with vertical drag-to-resize handle
+- **Zen Focus layout**: Scratch Pad (left) + Preview (right) only; no terminal or chat noise
+- **Phase 1.2 — Responsive Adaptation**: Mobile layout (< 1024 px) with full-height Preview, a collapsible bottom drawer (Terminal / Chat / Scratch Pad), and a persistent tab bar
+- Added `terminalHeight`, `isMobileLayout`, `activeDrawerTab`, and `layoutPreset` state — all persisted to sessionStorage
+- Extended `dragRef` with `startY` and `terminal-height` panel type for vertical drag support
+- Added `startTouchDrag` helper and `touchmove`/`touchend` global listeners for touch-screen panel resizing
+- Added `resize-divider` CSS class with coarse-pointer override (20 px min-width) and `dragging-vertical` cursor rule to `index.css`
+
 ## 2026-03-25 - Codex
 - Expanded Artifact Export to support three output styles: simple recap of user notes sent to AI, implementation plan, and structured fix list (no plan).
 - Added optional Scratch Pad inclusion toggle in Export modal; Scratch Pad remains local-only and is appended at the bottom only when explicitly selected.

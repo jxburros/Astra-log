@@ -13,6 +13,11 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Permission System** — AI-suggested terminal commands are presented in a dedicated confirmation dialog (not a browser `window.confirm`) showing the exact command in a code block before it is allowed to execute
 - **Sandboxed Preview** — the preview iframe is hardened with `sandbox` restrictions that block top-navigation and other privileged operations, isolating the running app from the main workspace UI
 - **Live preview** — responsive in-browser preview with mobile, tablet, and desktop viewport modes and a navigable URL bar
+- **Layout presets** — three switchable workspace layouts via the header Layout Switcher:
+  - **Standard** — Terminal (left) · Preview (center) · Chat + Scratch Pad (right); all panels resizable by drag
+  - **Architect** — Preview + Chat side-by-side on top, full-width Terminal bottom row with vertical drag-to-resize
+  - **Zen Focus** — Scratch Pad (left) · Preview (right) only; distraction-free review mode
+- **Responsive / Mobile layout** — on viewports below 1024 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
 - **Interactive terminal** — full xterm.js shell backed by the WebContainer
 - **AI chat panel** — context-aware chat that reads your project's file tree and source; supports multiple providers:
   - Google Gemini (`gemini-2.5-flash`)
