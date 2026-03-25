@@ -6,7 +6,8 @@ import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon,
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
-import { parseArtifactSections } from './lib/exportUtils';
+import { buildExportArtifact } from './lib/exportUtils';
+import type { ExportStyle } from './lib/exportUtils';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
 import type { TroubleshootRequest } from './components/ChatPanel';
@@ -93,6 +94,8 @@ export default function App() {
   const [destroyFadeOut, setDestroyFadeOut] = useState(false);
   /** Incremented to signal the ScratchPad to wipe its notes. */
   const [scratchKey, setScratchKey] = useState(0);
+  /** Local-only scratch pad content (never sent to AI). */
+  const [scratchPadContent, setScratchPadContent] = useState('');
   // ── Phase 4: Security & Trust Layer ───────────────────────────────────────
   /** Active containment scan result waiting for user decision. */
   const [scanModalResult, setScanModalResult] = useState<ScanResult | null>(null);
@@ -106,9 +109,11 @@ export default function App() {
   /** Whether the export/snapshot modal is open. */
   const [isExportOpen, setIsExportOpen] = useState(false);
   /** Parsed artifact passed to the export modal (derived from current chat messages). */
-  const [exportArtifact, setExportArtifact] = useState(() =>
-    parseArtifactSections([])
-  );
+  const [exportArtifact, setExportArtifact] = useState(() => buildExportArtifact([], 'implementation-plan'));
+  /** Current export style selected in the export modal. */
+  const [exportStyle, setExportStyle] = useState<ExportStyle>('implementation-plan');
+  /** Last chat message history used as source for export style regeneration. */
+  const [exportSourceMessages, setExportSourceMessages] = useState<Message[]>([]);
   /** Session-only plan snapshots; cleared when a new project session starts. */
   const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
   // Keep a ref so async boot callbacks always read the latest settings
@@ -237,8 +242,14 @@ export default function App() {
 
   // ── Phase 5.1: Export artifact ─────────────────────────────────────────────
   const handleExportArtifact = (messages: Message[]) => {
-    setExportArtifact(parseArtifactSections(messages));
+    setExportSourceMessages(messages);
+    setExportArtifact(buildExportArtifact(messages, exportStyle));
     setIsExportOpen(true);
+  };
+
+  const handleChangeExportStyle = (style: ExportStyle) => {
+    setExportStyle(style);
+    setExportArtifact(buildExportArtifact(exportSourceMessages, style));
   };
 
   // ── Phase 5.2: Evolution snapshots ────────────────────────────────────────
@@ -250,6 +261,7 @@ export default function App() {
         timestamp: new Date(),
         label: `Snapshot ${prev.length + 1}`,
         artifact: exportArtifact,
+        style: exportStyle,
       },
     ]);
   };
@@ -334,12 +346,15 @@ export default function App() {
     setUploadInputKey(k => k + 1);
     // Clear the scratch pad
     setScratchKey(k => k + 1);
+    setScratchPadContent('');
     // Exit focus mode on reset
     setFocusMode(false);
     // Phase 5: clear evolution snapshots and close export modal on session reset
     setPlanSnapshots([]);
     setIsExportOpen(false);
-    setExportArtifact(parseArtifactSections([]));
+    setExportArtifact(buildExportArtifact([], 'implementation-plan'));
+    setExportStyle('implementation-plan');
+    setExportSourceMessages([]);
 
     // Fade out the overlay
     setDestroyFadeOut(true);
@@ -820,6 +835,9 @@ export default function App() {
         isOpen={isExportOpen}
         onClose={() => setIsExportOpen(false)}
         artifact={exportArtifact}
+        exportStyle={exportStyle}
+        onChangeExportStyle={handleChangeExportStyle}
+        scratchPadContent={scratchPadContent}
         snapshots={planSnapshots}
         onTakeSnapshot={handleTakeSnapshot}
       />
@@ -1164,7 +1182,11 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              <ScratchPad resetKey={scratchKey} />
+              <ScratchPad
+                resetKey={scratchKey}
+                value={scratchPadContent}
+                onChange={setScratchPadContent}
+              />
             </motion.div>
           ) : (
             /* Collapsed scratch pad tab */
