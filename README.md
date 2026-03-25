@@ -1,5 +1,5 @@
 <div align="center">
-<img width="1200" height="475" alt="ALBanner" src="https://github.com/jxburros/Astra-log/blob/main/astra-log-new-logo.svg" style="filter: invert(100%);" />
+<img width="1200" height="475" alt="ALBanner" src="https://github.com/jxburros/Astra-log/blob/main/inverted-astra-logo.svg" />
 </div>
 
 # Astra/log
