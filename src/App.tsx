@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, Move } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -33,6 +33,8 @@ const WIPE_IN_DURATION = 600;
 const WIPE_OUT_DURATION = 300;
 /** Minimum Scratch Pad width (px) when Focus Mode is active. */
 const FOCUS_MODE_SCRATCH_MIN_WIDTH = 380;
+/** Minimum width (px) for the Preview panel in the standard layout. */
+const PREVIEW_MIN_WIDTH = 300;
 
 export default function App() {
   const [status, setStatus] = useState<Status>('idle');
@@ -110,10 +112,25 @@ export default function App() {
     const v = sessionStorage.getItem('layout_terminalHeight');
     return v ? Number(v) : 220;
   });
-  /** True when the viewport is narrow (< 1024 px) — triggers mobile bottom-drawer layout. */
-  const [isMobileLayout, setIsMobileLayout] = useState(() => window.innerWidth < 1024);
+  /** True when the viewport is narrow (< 900 px) — triggers mobile bottom-drawer layout. */
+  const [isMobileLayout, setIsMobileLayout] = useState(() => window.innerWidth < 900);
   /** Active panel in the mobile bottom drawer. */
   const [activeDrawerTab, setActiveDrawerTab] = useState<'terminal' | 'chat' | 'scratch' | null>(null);
+  /** Whether layout edit mode is active (lets user rearrange panels). Not persisted. */
+  const [layoutEditMode, setLayoutEditMode] = useState(false);
+  /** Terminal position in standard layout: left or right of preview. Persisted. */
+  const [terminalSide, setTerminalSide] = useState<'left' | 'right'>(() =>
+    (sessionStorage.getItem('layout_terminalSide') as 'left' | 'right') ?? 'left'
+  );
+  /** Chat-first or Scratch-first within the right panel. Persisted. */
+  const [chatFirst, setChatFirst] = useState<boolean>(() =>
+    sessionStorage.getItem('layout_chatFirst') !== 'false'
+  );
+  /** Total width of the combined Chat+Scratch right panel. Persisted. */
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_rightPanelWidth');
+    return v ? Number(v) : 620;
+  });
   /** Local-only scratch pad content (never sent to AI). */
   const [scratchPadContent, setScratchPadContent] = useState('');
   /** Scratch Pad notes staged by the user to be prepended to the next AI message. */
@@ -164,11 +181,13 @@ export default function App() {
   const terminalOutputBufferRef = useRef<string>('');
   /** Incremented on each new project session; lets processZipFile detect stale calls. */
   const processSessionRef = useRef<number>(0);
+  /** Always holds latest rightPanelWidth so the drag handler (closed over []) can read it. */
+  const rightPanelWidthRef = useRef(620);
 
   // ── Panel drag-to-resize ───────────────────────────────────────────────────
   /** Tracks an in-progress panel-drag operation. */
   const dragRef = useRef<{
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | null;
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch' | null;
     startX: number; startY: number; startWidth: number;
   }>({ panel: null, startX: 0, startY: 0, startWidth: 0 });
 
@@ -186,6 +205,11 @@ export default function App() {
       } else if (panel === 'terminal-height') {
         const dy = e.clientY - startY;
         setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
+      } else if (panel === 'right-panel') {
+        setRightPanelWidth(Math.max(300, Math.min(900, startWidth - delta)));
+      } else if (panel === 'chat-scratch') {
+        const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + delta));
+        setChatWidth(newChatWidth);
       }
     };
     const onMouseUp = () => {
@@ -214,7 +238,11 @@ export default function App() {
     sessionStorage.setItem('layout_scratchPinned', String(scratchPinned));
     sessionStorage.setItem('layout_preset', layoutPreset);
     sessionStorage.setItem('layout_terminalHeight', String(terminalHeight));
-  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight]);
+    sessionStorage.setItem('layout_terminalSide', terminalSide);
+    sessionStorage.setItem('layout_chatFirst', String(chatFirst));
+    sessionStorage.setItem('layout_rightPanelWidth', String(rightPanelWidth));
+    rightPanelWidthRef.current = rightPanelWidth;
+  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight, terminalSide, chatFirst, rightPanelWidth]);
 
   // Keyboard-first Scratch Pad access (Ctrl/Cmd + . to toggle, Ctrl/Cmd + Shift + K to focus)
   useEffect(() => {
@@ -240,7 +268,7 @@ export default function App() {
 
   // Mobile-layout detection
   useEffect(() => {
-    const onResize = () => setIsMobileLayout(window.innerWidth < 1024);
+    const onResize = () => setIsMobileLayout(window.innerWidth < 900);
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -810,7 +838,7 @@ export default function App() {
 
   // Helper: start a panel drag
   const startDrag = (
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height',
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch',
     currentSize: number
   ) => (e: { preventDefault: () => void; clientX: number; clientY: number }) => {
     e.preventDefault();
@@ -820,7 +848,7 @@ export default function App() {
   };
 
   const startTouchDrag = (
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height',
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch',
     currentSize: number
   ) => (e: React.TouchEvent) => {
     e.preventDefault();
@@ -846,6 +874,11 @@ export default function App() {
         setScratchWidth(Math.max(180, Math.min(520, startWidth - dx)));
       } else if (p === 'terminal-height') {
         setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
+      } else if (p === 'right-panel') {
+        setRightPanelWidth(Math.max(300, Math.min(900, startWidth - dx)));
+      } else if (p === 'chat-scratch') {
+        const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + dx));
+        setChatWidth(newChatWidth);
       }
     };
     const onEnd = () => {
@@ -1046,6 +1079,15 @@ export default function App() {
             title={focusMode ? 'Exit Focus Mode' : 'Focus Mode — hide terminal & chat'}
           >
             {focusMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+
+          {/* Layout Edit Mode toggle */}
+          <button
+            onClick={() => setLayoutEditMode(m => !m)}
+            className={`p-2 rounded-lg transition-colors ${layoutEditMode ? 'text-violet-400 bg-violet-500/10 hover:bg-violet-500/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            title={layoutEditMode ? 'Exit Layout Edit Mode' : 'Edit Layout — rearrange & resize panels'}
+          >
+            <Move className="w-4 h-4" />
           </button>
 
           {/* Layout Switcher */}
@@ -1564,297 +1606,500 @@ export default function App() {
         /* ── Standard layout (default) ───────────────────────────────────── */
         <main className="flex-1 flex overflow-hidden min-h-0">
 
-          {/* ── Terminal Panel (Phase 1.1 / 1.3) ────────────────────────────── */}
-        {!focusMode && !terminalCollapsed ? (
-          <div
-            data-tour="terminal"
-            style={{ width: terminalWidth }}
-            className="flex flex-col border-r border-white/8 bg-black/45 backdrop-blur-xl shrink-0 overflow-hidden animate-panel-in-left"
-          >
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                <TerminalIcon className="w-3.5 h-3.5" />
-                Terminal
-              </div>
-              <button
-                onClick={() => setTerminalCollapsed(true)}
-                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-                title="Collapse terminal"
+          {/* ── Terminal Panel (left side when terminalSide='left') ──── */}
+          {!focusMode && terminalSide === 'left' && (
+            !terminalCollapsed ? (
+              <div
+                data-tour="terminal"
+                style={{ width: terminalWidth }}
+                className={`flex flex-col border-r border-white/8 bg-black/45 backdrop-blur-xl shrink-0 overflow-hidden animate-panel-in-left ${layoutEditMode ? 'ring-1 ring-violet-500/30' : ''}`}
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="flex-1 p-2 overflow-hidden min-h-0">
-              <TerminalComponent
-                onTerminalReady={handleTerminalReady}
-                onTerminalData={handleTerminalData}
-                statusMessage={recoveryMessage}
-              />
-            </div>
-          </div>
-        ) : !focusMode ? (
-          /* Collapsed terminal tab */
-          <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
-            <button
-              onClick={() => setTerminalCollapsed(false)}
-              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-              title="Expand terminal"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-            <span className={collapsedLabel} style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-              Terminal
-            </span>
-          </div>
-        ) : null}
-
-        {/* Drag divider: Terminal ↔ Preview */}
-        {!focusMode && !terminalCollapsed && (
-          <div
-            className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
-            onMouseDown={startDrag('terminal', terminalWidth)}
-            onTouchStart={startTouchDrag('terminal', terminalWidth)}
-          >
-            <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        )}
-
-        {/* ── Preview Panel ────────────────────────────────────────────────── */}
-        <div data-tour="preview" className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
-            <div className="flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5" />
-              Preview
-            </div>
-            
-            {previewBaseUrl && (
-              <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
-                <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <div className="w-px h-4 bg-white/10 mx-1" />
-                <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
-                <input 
-                  type="text" 
-                  value={browserPath}
-                  onChange={e => setBrowserPath(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)}
-                  className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]"
-                  placeholder="/"
-                />
-              </div>
-            )}
-
-            <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
-              <button 
-                onClick={() => setPreviewMode('mobile')}
-                className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                title="Mobile View"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={() => setPreviewMode('tablet')}
-                className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                title="Tablet View"
-              >
-                <Tablet className="w-3.5 h-3.5" />
-              </button>
-              <button 
-                onClick={() => setPreviewMode('desktop')}
-                className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-                title="Desktop View"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1 relative bg-[#09090b] overflow-hidden">
-            {previewUrl ? (
-              <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
-                <div 
-                  className={`transition-all duration-300 ease-in-out bg-white ${
-                    previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
-                    previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
-                    'w-full h-full'
-                  }`}
-                >
-                  <iframe 
-                    key={iframeKey}
-                    src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} 
-                    className="w-full h-full border-none"
-                    title="Preview"
-                    allow="cross-origin-isolated"
-                    referrerPolicy="no-referrer"
-                    sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <TerminalIcon className="w-3.5 h-3.5" />
+                    Terminal
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    {layoutEditMode && (
+                      <button
+                        onClick={() => setTerminalSide('right')}
+                        className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
+                        title="Move terminal to right"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setTerminalCollapsed(true)}
+                      className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                      title="Collapse terminal"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 p-2 overflow-hidden min-h-0">
+                  <TerminalComponent
+                    onTerminalReady={handleTerminalReady}
+                    onTerminalData={handleTerminalData}
+                    statusMessage={recoveryMessage}
                   />
                 </div>
               </div>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
-                {status === 'idle' ? (
+              <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
+                <button
+                  onClick={() => setTerminalCollapsed(false)}
+                  className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                  title="Expand terminal"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <span className={collapsedLabel} style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                  Terminal
+                </span>
+              </div>
+            )
+          )}
+
+          {/* Drag divider: Terminal ↔ Preview (left) */}
+          {!focusMode && terminalSide === 'left' && !terminalCollapsed && (
+            <div
+              className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+              onMouseDown={startDrag('terminal', terminalWidth)}
+              onTouchStart={startTouchDrag('terminal', terminalWidth)}
+            >
+              <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          )}
+
+          {/* ── Preview Panel ────────────────────────────────────────────────── */}
+          <div data-tour="preview" className="flex-1 flex flex-col bg-[#09090b] overflow-hidden" style={{ minWidth: PREVIEW_MIN_WIDTH }}>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" />
+                Preview
+              </div>
+              
+              {previewBaseUrl && (
+                <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
+                  <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-px h-4 bg-white/10 mx-1" />
+                  <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
+                  <input 
+                    type="text" 
+                    value={browserPath}
+                    onChange={e => setBrowserPath(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)}
+                    className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]"
+                    placeholder="/"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
+                <button 
+                  onClick={() => setPreviewMode('mobile')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Mobile View"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('tablet')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Tablet View"
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('desktop')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Desktop View"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 relative bg-[#09090b] overflow-hidden">
+              {previewUrl ? (
+                <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
+                  <div 
+                    className={`transition-all duration-300 ease-in-out bg-white ${
+                      previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      'w-full h-full'
+                    }`}
+                  >
+                    <iframe 
+                      key={iframeKey}
+                      src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} 
+                      className="w-full h-full border-none"
+                      title="Preview"
+                      allow="cross-origin-isolated"
+                      referrerPolicy="no-referrer"
+                      sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
+                  {status === 'idle' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+                        <Upload className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
+                    </>
+                  ) : status === 'error' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl">
+                        <AlertCircle className="w-8 h-8 text-rose-400" />
+                      </div>
+                      <p className="text-rose-400 max-w-md text-center">{errorMsg}</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
+                        <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                      </div>
+                      <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Right panel: Chat + Scratch side-by-side ────────────────────── */}
+          {!focusMode && (
+            <>
+              {/* Drag divider: Preview ↔ Right Panel */}
+              {!(chatCollapsed && scratchCollapsed) && (
+                <div
+                  className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                  onMouseDown={startDrag('right-panel', rightPanelWidth)}
+                  onTouchStart={startTouchDrag('right-panel', rightPanelWidth)}
+                >
+                  <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )}
+
+              {/* Right panel container */}
+              <div
+                style={{ width: (chatCollapsed && scratchCollapsed) ? 16 : rightPanelWidth }}
+                className={`flex flex-row shrink-0 overflow-hidden ${layoutEditMode ? 'ring-1 ring-violet-500/30' : ''}`}
+              >
+                {chatFirst ? (
                   <>
-                    <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
-                      <Upload className="w-8 h-8 text-zinc-500" />
-                    </div>
-                    <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
-                  </>
-                ) : status === 'error' ? (
-                  <>
-                    <div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl">
-                      <AlertCircle className="w-8 h-8 text-rose-400" />
-                    </div>
-                    <p className="text-rose-400 max-w-md text-center">{errorMsg}</p>
+                    {/* Chat panel */}
+                    {!chatCollapsed ? (
+                      <div
+                        style={{ width: scratchCollapsed ? rightPanelWidth : chatWidth, flex: scratchCollapsed ? '1 1 auto' : undefined }}
+                        className="flex flex-col shrink-0 overflow-hidden border-r border-white/8 animate-panel-in-right"
+                      >
+                        <ChatPanel
+                          resetKey={chatKey}
+                          settings={settings}
+                          getProjectContext={getProjectContext}
+                          troubleshootRequest={troubleshootRequest}
+                          onTroubleshootHandled={() => setTroubleshootRequest(null)}
+                          onCollapse={() => setChatCollapsed(true)}
+                          onRunDiagnosticCommand={handleRunDiagnosticCommand}
+                          onExportArtifact={handleExportArtifact}
+                          stagedNotes={stagedNotes}
+                          onClearStagedNotes={handleClearStagedNotes}
+                        />
+                      </div>
+                    ) : (
+                      <div className={`${collapsedTab} w-8 border-r border-white/8 py-3 gap-2`}>
+                        <button onClick={() => setChatCollapsed(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title="Expand chat">
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                        <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Chat</span>
+                      </div>
+                    )}
+
+                    {/* Internal divider: Chat ↔ Scratch */}
+                    {!chatCollapsed && !scratchCollapsed && (
+                      <div
+                        className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                        onMouseDown={startDrag('chat-scratch', chatWidth)}
+                        onTouchStart={startTouchDrag('chat-scratch', chatWidth)}
+                      >
+                        <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
+
+                    {/* Scratch Pad */}
+                    <AnimatePresence mode="wait">
+                      {!scratchCollapsed ? (
+                        <motion.div
+                          key="scratch-open"
+                          initial={{ opacity: 0, x: 24 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 24 }}
+                          transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                          data-tour="scratch"
+                          style={{ flex: chatCollapsed ? '1 1 auto' : undefined, width: chatCollapsed ? undefined : rightPanelWidth - chatWidth - 4 }}
+                          className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                              <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {layoutEditMode && (
+                                <button
+                                  onClick={() => setChatFirst(false)}
+                                  className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
+                                  title="Move Scratch Pad to left of Chat"
+                                >
+                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
+                                {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                          <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="scratch-collapsed"
+                          initial={{ opacity: 0, x: 8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: 8 }}
+                          transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                          className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
+                        >
+                          <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>Notes</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </>
                 ) : (
                   <>
-                    <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
-                      <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                    </div>
-                    <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
+                    {/* Scratch Pad first */}
+                    <AnimatePresence mode="wait">
+                      {!scratchCollapsed ? (
+                        <motion.div
+                          key="scratch-open-l"
+                          initial={{ opacity: 0, x: -24 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -24 }}
+                          transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                          data-tour="scratch"
+                          style={{ flex: chatCollapsed ? '1 1 auto' : undefined, width: chatCollapsed ? undefined : rightPanelWidth - chatWidth - 4 }}
+                          className="flex flex-col border-r border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+                        >
+                          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                            <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                              <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {layoutEditMode && (
+                                <button
+                                  onClick={() => setChatFirst(true)}
+                                  className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
+                                  title="Move Scratch Pad to right of Chat"
+                                >
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
+                                {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                          <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="scratch-collapsed-l"
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -8 }}
+                          transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                          className={`${collapsedTab} w-8 border-r border-white/8 py-3 gap-2`}
+                        >
+                          <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+                          <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Notes</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Internal divider: Scratch ↔ Chat */}
+                    {!chatCollapsed && !scratchCollapsed && (
+                      <div
+                        className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                        onMouseDown={startDrag('chat-scratch', chatWidth)}
+                        onTouchStart={startTouchDrag('chat-scratch', chatWidth)}
+                      >
+                        <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                    )}
+
+                    {/* Chat panel */}
+                    {!chatCollapsed ? (
+                      <div
+                        style={{ width: scratchCollapsed ? rightPanelWidth : chatWidth, flex: scratchCollapsed ? '1 1 auto' : undefined }}
+                        className="flex flex-col shrink-0 overflow-hidden border-l border-white/8 animate-panel-in-right"
+                      >
+                        <ChatPanel
+                          resetKey={chatKey}
+                          settings={settings}
+                          getProjectContext={getProjectContext}
+                          troubleshootRequest={troubleshootRequest}
+                          onTroubleshootHandled={() => setTroubleshootRequest(null)}
+                          onCollapse={() => setChatCollapsed(true)}
+                          onRunDiagnosticCommand={handleRunDiagnosticCommand}
+                          onExportArtifact={handleExportArtifact}
+                          stagedNotes={stagedNotes}
+                          onClearStagedNotes={handleClearStagedNotes}
+                        />
+                      </div>
+                    ) : (
+                      <div className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}>
+                        <button onClick={() => setChatCollapsed(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title="Expand chat">
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Chat</span>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Drag divider: Preview ↔ Chat */}
-        {!focusMode && !chatCollapsed && (
-          <div
-            className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
-            onMouseDown={startDrag('chat', chatWidth)}
-            onTouchStart={startTouchDrag('chat', chatWidth)}
-          >
-            <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        )}
-
-        {/* ── Chat Panel (Phase 1.1) ────────────────────────────────────────── */}
-        {!focusMode && !chatCollapsed ? (
-          <div
-            style={{ width: chatWidth }}
-            className="flex flex-col shrink-0 overflow-hidden border-l border-white/8 animate-panel-in-right"
-          >
-            <ChatPanel
-              resetKey={chatKey}
-              settings={settings}
-              getProjectContext={getProjectContext}
-              troubleshootRequest={troubleshootRequest}
-              onTroubleshootHandled={() => setTroubleshootRequest(null)}
-              onCollapse={() => setChatCollapsed(true)}
-              onRunDiagnosticCommand={handleRunDiagnosticCommand}
-              onExportArtifact={handleExportArtifact}
-              stagedNotes={stagedNotes}
-              onClearStagedNotes={handleClearStagedNotes}
-            />
-          </div>
-        ) : !focusMode ? (
-          /* Collapsed chat tab */
-          <div className={`${collapsedTab} w-8 border-l py-3 gap-2`}>
-            <button
-              onClick={() => setChatCollapsed(false)}
-              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-              title="Expand chat"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>
-              Chat
-            </span>
-          </div>
-        ) : null}
-
-        {/* Drag divider: Chat ↔ Scratch Pad */}
-        <AnimatePresence>
-          {!scratchCollapsed && (
-            <motion.div
-              key="scratch-divider"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
-              onMouseDown={startDrag('scratch', scratchWidth)}
-              onTouchStart={startTouchDrag('scratch', scratchWidth)}
-            >
-              <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </motion.div>
+            </>
           )}
-        </AnimatePresence>
 
-        {/* ── Scratch Pad Panel (Phase 1.2) ─────────────────────────────────── */}
-        <AnimatePresence mode="wait">
-          {!scratchCollapsed ? (
-            <motion.div
-              key="scratch-open"
-              initial={{ opacity: 0, x: 24 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 24 }}
-              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-              data-tour="scratch"
-              style={{ width: focusMode ? Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) : scratchWidth }}
-              className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                  <PenLine className="w-3.5 h-3.5 text-amber-400/80" />
-                  {focusMode ? (
-                    <span className="text-amber-300/90">Scratch Pad</span>
-                  ) : (
-                    'Scratch Pad'
-                  )}
+          {/* ── Terminal Panel (right side when terminalSide='right') ─── */}
+          {!focusMode && terminalSide === 'right' && (
+            <>
+              {/* Drag divider: RightPanel ↔ Terminal */}
+              {!terminalCollapsed && (
+                <div
+                  className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                  onMouseDown={startDrag('terminal', terminalWidth)}
+                  onTouchStart={startTouchDrag('terminal', terminalWidth)}
+                >
+                  <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
-                <div className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => {
-                      if (scratchPinned) return;
-                      setScratchCollapsed(true);
-                    }}
-                    className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`}
-                    title={scratchPinned ? 'Scratch pad is pinned open' : 'Collapse scratch pad'}
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setScratchPinned(p => !p)}
-                    className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`}
-                    title={scratchPinned ? 'Unpin scratch pad' : 'Pin scratch pad open'}
-                  >
-                    {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                  </button>
+              )}
+              {!terminalCollapsed ? (
+                <div
+                  data-tour="terminal"
+                  style={{ width: terminalWidth }}
+                  className={`flex flex-col border-l border-white/8 bg-black/45 backdrop-blur-xl shrink-0 overflow-hidden animate-panel-in-right ${layoutEditMode ? 'ring-1 ring-violet-500/30' : ''}`}
+                >
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                      <TerminalIcon className="w-3.5 h-3.5" />
+                      Terminal
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      {layoutEditMode && (
+                        <button
+                          onClick={() => setTerminalSide('left')}
+                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
+                          title="Move terminal to left"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setTerminalCollapsed(true)}
+                        className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                        title="Collapse terminal"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 p-2 overflow-hidden min-h-0">
+                    <TerminalComponent
+                      onTerminalReady={handleTerminalReady}
+                      onTerminalData={handleTerminalData}
+                      statusMessage={recoveryMessage}
+                    />
+                  </div>
                 </div>
-              </div>
-              <ScratchPad
-                resetKey={scratchKey}
-                value={scratchPadContent}
-                onChange={setScratchPadContent}
-                onStageNotes={handleStageNotes}
-              />
-            </motion.div>
-          ) : (
-            /* Collapsed scratch pad tab */
-            <motion.div
-              key="scratch-collapsed"
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 8 }}
-              transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-              className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
-            >
-              <button
-                onClick={() => setScratchCollapsed(false)}
-                className="p-1 text-zinc-600 hover:text-amber-400 transition-colors"
-                title="Expand scratch pad"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>
-                Notes
-              </span>
-            </motion.div>
+              ) : (
+                <div className={`${collapsedTab} w-8 border-l py-3 gap-2`}>
+                  <button
+                    onClick={() => setTerminalCollapsed(false)}
+                    className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                    title="Expand terminal"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Terminal</span>
+                </div>
+              )}
+            </>
           )}
-        </AnimatePresence>
+
+          {/* ── Focus mode: Scratch Pad (right) ─────────────────────────── */}
+          {focusMode && (
+            <AnimatePresence mode="wait">
+              {!scratchCollapsed ? (
+                <motion.div
+                  key="scratch-focus"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 24 }}
+                  transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                  data-tour="scratch"
+                  style={{ width: Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) }}
+                  className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+                >
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
+                      <PenLine className="w-3.5 h-3.5 text-amber-400/80" />
+                      <span className="text-amber-300/90">Scratch Pad</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
+                        {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+                  <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="scratch-focus-collapsed"
+                  initial={{ opacity: 0, x: 8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 8 }}
+                  transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                  className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
+                >
+                  <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>Notes</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
 
         </main>
       )}

@@ -1,6 +1,14 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Responsive Layout**: Lowered mobile/drawer layout breakpoint from 1024 px to 900 px so mid-size laptops get the full-height Preview + collapsible bottom-drawer experience
+- **Chat + Scratch Pad side-by-side**: In the Standard layout, Chat and Scratch Pad now live inside a single combined right panel; both panels sit horizontally next to each other; when one is collapsed the other expands to fill the full right-panel width
+- **Right-panel drag-to-resize**: A new drag divider on the left edge of the combined right panel lets users resize the entire panel; the Preview (flex-1) adjusts to fill the freed space; an internal drag divider between Chat and Scratch Pad resizes them relative to each other within the panel
+- **Layout Edit Mode**: New ✥ (Move) toggle in the header activates edit mode; active panels receive a pulsing violet ring; Terminal header shows a "move to right / move to left" arrow; Scratch Pad header shows arrows to swap its position relative to Chat; Terminal side (`left`/`right`) and Chat/Scratch order are persisted to sessionStorage
+- **Stale-closure fix**: Added `rightPanelWidthRef` so the drag-resize handler (closed over `[]`) always reads the latest right-panel width when computing Chat/Scratch split limits
+- **CSS**: Added `edit-ring-pulse` keyframe animation for the layout-edit-mode panel highlight
+
+## 2026-03-25 - GitHub Copilot
 - **Phase 3.1 — Welcome Modal**: Implemented one-time splash screen (`WelcomeModal.tsx`) that explains Zero Persistence and Consultant-Only core principles; shown once on first load (tracked via `localStorage.astra_welcome_seen`); provides "Take a quick tour" or "Skip for now" actions
 - **Phase 3.1 — Workspace Tour**: Implemented 3-step guided tour overlay (`WorkspaceTour.tsx`) using SVG spotlight cutout; highlights Terminal (Ingestion), Preview (Output), and Scratch Pad (Private Thoughts) with step indicators and contextual tooltip cards; accessible from the Welcome Modal
 - **Phase 3.2 — In-App Help Guide**: Implemented `HelpGuide.tsx` modal accessible via a new `?` (`HelpCircle`) icon in the app header; contains a keyboard shortcuts cheat sheet (`Ctrl + .`, `Ctrl + Shift + K`, `Cmd/Ctrl + K`) and four workflow tips covering the Scratch Pad, ZIP ingestion, Stage for AI, and session reset
