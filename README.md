@@ -21,10 +21,10 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Responsive / Mobile layout** — on viewports below 900 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
 - **Interactive terminal** — full xterm.js shell backed by the WebContainer
 - **AI chat panel** — context-aware chat that reads your project's file tree and source; supports multiple providers:
-  - Google Gemini (`gemini-2.5-flash`)
-  - OpenAI (`gpt-4o`)
-  - Anthropic (`claude-3-5-sonnet`)
-  - Local / Ollama (configurable endpoint)
+  - Google Gemini (`gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, `gemini-2.0-pro-exp`)
+  - OpenAI (`gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`, `o4-mini`)
+  - Anthropic (`claude-sonnet-4-5`, `claude-opus-4-5`, `claude-haiku-4-5`, `claude-3-5-sonnet`, `claude-3-5-haiku`)
+  - Local / Ollama (configurable endpoint; models discovered live from `/api/tags`)
 - **Offline Scratch Pad** — fully local, session-only thought buffer that is visually distinct from chat, includes quick clear, keyboard-first access (`Ctrl/Cmd + .` to toggle, `Ctrl/Cmd + Shift + K` to focus), optional timestamps/sections, and quick-bullet mode
 - **AI behavior layer + action chips** — passive handling for short inputs, concise structured responses, and one-click follow-up chips (`Expand`, `Clarify`, `What’s missing`)
 - **Concise Mode** — toggle ⚡ in the Chat panel header to force bullet-point, maximum-5-item AI responses with no preamble; preference persists across page reloads
@@ -37,7 +37,7 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **AI App Reviewer** — click "Review App (A11y & UX)" in the Chat panel to request a structured AI review of the running preview covering **Accessibility (A11y)**, **UI/UX critique**, and **Color Contrast** (WCAG AA compliance); analysis is derived from project source files
 - **Custom Instructions** — open AI Settings (⚙️) to add a "Custom Instructions" field that is appended to the AI's system prompt every session; use this to refine the AI's persona or focus (e.g. "always prioritize WCAG compliance")
 - **Session Freshness Indicator** — a subtle `HH:MM:SS` timer appears next to the "New Project" button once a session is active, tracking the elapsed duration of the current transient session
-- **2026 Model Registry** — AI provider model lists updated to current standards; deprecated Gemini 1.5 and Claude 3 Opus models removed; new GPT-4.1, o4-mini, and Gemini 2.0 Pro variants added
+- **2026 Model Registry** — AI provider model lists updated to current standards; deprecated Gemini 1.5, Claude 3 Opus, GPT-4 Turbo, and o1/o1-mini models removed; new GPT-4.1, o4-mini, Gemini 2.0 Pro, and Claude 4.5 (Opus/Sonnet/Haiku) variants added
 - **Local Model Discovery (Ollama)** — when "Local/Ollama" is selected as the AI provider, available models are discovered automatically from Ollama's live `/api/tags` endpoint instead of relying on hardcoded defaults; model selection dropdown works for Ollama just like cloud providers
 - **Welcome Onboarding** — a one-time splash screen on first launch explains the Zero Persistence and Consultant-Only principles; users can immediately launch a guided workspace tour
 - **Workspace Tour** — a 3-step guided tour (Terminal → Preview → Scratch Pad) with SVG spotlight highlighting and step-by-step descriptions; available on first launch or re-launchable from the welcome flow

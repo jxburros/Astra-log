@@ -1,6 +1,11 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Documentation audit**: Updated `README.md` AI chat panel feature section to reflect the current 2026 model registry; replaced outdated model examples (`gemini-2.5-flash`, `gpt-4o`, `claude-3-5-sonnet`) with the full current lists for Gemini, OpenAI, Anthropic, and Local/Ollama providers
+- **Documentation audit**: Expanded the `2026 Model Registry` feature bullet in `README.md` to include Claude 4.5 (Opus/Sonnet/Haiku) model additions and the full list of removed deprecated models (GPT-4 Turbo, o1/o1-mini) alongside the previously noted Gemini 1.5 and Claude 3 Opus removals
+- Confirmed `productRoadmap.md` accurately reflects V1.0-RC status with all five 1.0 Final Push items marked complete
+
+## 2026-03-25 - GitHub Copilot
 ### 1.0 Final Push — All five roadmap items implemented
 
 - **AI App Reviewer**: Added "Review App (A11y & UX)" button (🔍 `ScanEye` icon) to the Chat panel bottom bar. Clicking it sends a structured AI review prompt requesting findings on Accessibility (ARIA, alt text, semantic HTML, keyboard navigation), UI/UX critique, and Color Contrast (WCAG AA). Visible in all layout variants whenever a chat session has messages.
