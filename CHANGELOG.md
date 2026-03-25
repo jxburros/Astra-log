@@ -31,3 +31,7 @@
 - Added AI behavior-layer controls in chat for passive short-input handling, reduced verbosity, and structured explanation-first responses.
 - Implemented Action Chips (`Expand`, `Clarify`, `What’s missing`) as one-click follow-up prompts with no automatic execution.
 - Added diagnostic command execution flow: AI-suggested fenced shell commands now render clickable run buttons, require user confirmation, and execute through the existing terminal shell pipeline.
+
+## 2026-03-25 - Codex
+- Replaced the in-app header brand asset to use `astra-log-new-logo.svg`.
+- Verified the app builds successfully with the updated logo import.

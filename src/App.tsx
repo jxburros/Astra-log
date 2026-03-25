@@ -12,7 +12,7 @@ import { SettingsModal, Settings } from './components/SettingsModal';
 import { ScratchPad } from './components/ScratchPad';
 import { ContainmentScanModal } from './components/ContainmentScanModal';
 import { PermissionDialog } from './components/PermissionDialog';
-import AstraLogLogo from '../Astra-log-logo.svg';
+import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
