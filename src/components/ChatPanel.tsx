@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown } from 'lucide-react';
+import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 export interface Message {
@@ -27,6 +27,10 @@ interface Props {
   onRunDiagnosticCommand?: (command: string) => void;
   /** Called when the user requests an artifact export; receives the current message history. */
   onExportArtifact?: (messages: Message[]) => void;
+  /** Scratch Pad notes staged by the user to be prepended to the next message. */
+  stagedNotes?: string;
+  /** Called once staged notes have been consumed so the parent can clear them. */
+  onClearStagedNotes?: () => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
@@ -40,7 +44,15 @@ When suggesting terminal diagnostics, format each command in its own fenced \`\`
 const INITIAL_MESSAGE: Message = { role: 'assistant', content: "Hey there! Ready to build something great? Share your ideas — big or small — and let's start mapping out what your app could become. Whenever you're ready, we can turn it all into a solid implementation plan." };
 
 const ACTION_CHIPS = ['Expand', 'Clarify', "What's missing"] as const;
+const BINARY_RESPONSES = ['Yes', 'No'] as const;
+const CONTEXTUAL_RESPONSES = ['Proceed', 'Explain further'] as const;
 const SHORT_INPUT_THRESHOLD = 40;
+
+/** Returns true when the last non-empty line of an AI message ends with "?". */
+const endsWithQuestion = (content: string): boolean => {
+  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+  return lines.length > 0 && lines[lines.length - 1].endsWith('?');
+};
 
 const getDiagnosticCommands = (content: string): string[] => {
   const commands = new Set<string>();
@@ -57,11 +69,19 @@ const getDiagnosticCommands = (content: string): string[] => {
   return Array.from(commands).slice(0, 4);
 };
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand, onExportArtifact }: Props) {
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand, onExportArtifact, stagedNotes, onClearStagedNotes }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [conciseMode, setConciseMode] = useState<boolean>(() =>
+    sessionStorage.getItem('chat_conciseMode') === 'true'
+  );
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Persist concise mode preference
+  useEffect(() => {
+    sessionStorage.setItem('chat_conciseMode', String(conciseMode));
+  }, [conciseMode]);
 
   // Reset chat history whenever a new project session starts
   useEffect(() => {
@@ -104,7 +124,18 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
   const handleSend = async (text: string, isPlanRequest = false) => {
     if (!text.trim() && !isPlanRequest) return;
     
-    const userMsg = text.trim();
+    const rawInput = text.trim();
+
+    // Prepend staged Scratch Pad notes if present
+    const userMsg = stagedNotes && rawInput
+      ? `[Staged notes from Scratch Pad]:\n${stagedNotes}\n\n---\n\n${rawInput}`
+      : stagedNotes && !rawInput
+        ? `[Staged notes from Scratch Pad]:\n${stagedNotes}`
+        : rawInput;
+
+    // Clear staged notes now that they've been consumed
+    if (stagedNotes) onClearStagedNotes?.();
+
     const newMessages = [...messages];
     
     if (userMsg) {
@@ -117,11 +148,17 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
 
     try {
       const context = await getProjectContext();
-      const isPassiveMode = userMsg.length > 0 && userMsg.length <= SHORT_INPUT_THRESHOLD;
+      // Passive mode is intentionally based on rawInput (the user's typed text),
+      // not the full combined message, so that staging long scratch pad notes
+      // does not suppress the passive behavior for a short user input.
+      const isPassiveMode = rawInput.length > 0 && rawInput.length <= SHORT_INPUT_THRESHOLD;
       const behaviorLayer = isPassiveMode
         ? 'Passive mode is active for this turn. Keep response to 2-4 concise sentences. Prefer acknowledgment + structure. Do not provide unsolicited implementation solutions.'
         : 'Standard mode: keep response focused, structured, and reasonably concise.';
-      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- BEHAVIOR LAYER ---\n${behaviorLayer}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
+      const conciseModeLayer = conciseMode
+        ? '\nConcise mode is active. Respond only in bullet points. Maximum 5 items. Omit all preamble and closing remarks.'
+        : '';
+      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- BEHAVIOR LAYER ---\n${behaviorLayer}${conciseModeLayer}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
 
       let reply = '';
       
@@ -201,15 +238,26 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           <Bot className="w-3.5 h-3.5 text-indigo-400" />
           AI Brainstorming
         </div>
-        {onCollapse && (
+        <div className="flex items-center gap-1">
+          {/* Concise Mode Toggle */}
           <button
-            onClick={onCollapse}
-            className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-            title="Collapse chat"
+            onClick={() => setConciseMode(m => !m)}
+            className={`p-1.5 rounded transition-colors flex items-center gap-1 text-[10px] font-medium ${conciseMode ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25' : 'text-zinc-600 hover:text-zinc-300 hover:bg-white/5'}`}
+            title={conciseMode ? 'Concise mode on — bullet-point responses' : 'Enable concise mode — force bulleted summaries'}
           >
-            <ChevronRight className="w-3.5 h-3.5" />
+            <Zap className="w-3 h-3" />
+            {conciseMode && <span>Concise</span>}
           </button>
-        )}
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+              title="Collapse chat"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -234,6 +282,33 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
                       >
                         <Wand2 className="w-3 h-3" />
                         {chip}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Suggested responses */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {endsWithQuestion(msg.content) && BINARY_RESPONSES.map(resp => (
+                      <button
+                        key={resp}
+                        onClick={() => handleSend(resp)}
+                        disabled={isTyping}
+                        className="px-2.5 py-1 text-[11px] rounded-full border border-indigo-500/25 bg-indigo-500/8 text-indigo-300 hover:text-white hover:bg-indigo-500/20 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        title={`Reply: ${resp}`}
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {resp}
+                      </button>
+                    ))}
+                    {CONTEXTUAL_RESPONSES.map(resp => (
+                      <button
+                        key={resp}
+                        onClick={() => handleSend(resp)}
+                        disabled={isTyping}
+                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/8 bg-white/3 text-zinc-400 hover:text-zinc-200 hover:bg-white/8 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        title={`Reply: ${resp}`}
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        {resp}
                       </button>
                     ))}
                   </div>
@@ -290,6 +365,23 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
             <FileDown className="w-4 h-4" />
             Export Artifact
           </button>
+        )}
+
+        {/* Staged notes indicator */}
+        {stagedNotes && (
+          <div className="mb-2 px-3 py-1.5 bg-amber-500/10 border border-amber-500/25 rounded-lg flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-300 min-w-0">
+              <PenLine className="w-3 h-3 shrink-0" />
+              <span className="truncate">Scratch Pad notes staged — prepended to next message</span>
+            </div>
+            <button
+              onClick={onClearStagedNotes}
+              className="p-0.5 text-amber-600 hover:text-amber-300 transition-colors shrink-0"
+              title="Discard staged notes"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         )}
         
         <div className="relative">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Clock3, List, Heading2 } from 'lucide-react';
+import { Trash2, Clock3, List, Heading2, ArrowUpRight } from 'lucide-react';
 
 interface ScratchPadProps {
   /** Increment to clear the scratch pad content on session reset. */
@@ -8,11 +8,14 @@ interface ScratchPadProps {
   value?: string;
   /** Notifies parent when content changes. */
   onChange?: (value: string) => void;
+  /** Called when the user stages current notes to be prepended to the next AI message. */
+  onStageNotes?: () => void;
 }
 
-export function ScratchPad({ resetKey, value, onChange }: ScratchPadProps) {
+export function ScratchPad({ resetKey, value, onChange, onStageNotes }: ScratchPadProps) {
   const [content, setContent] = useState('');
   const [bulletMode, setBulletMode] = useState(false);
+  const [stageConfirmed, setStageConfirmed] = useState(false);
   const currentContent = value ?? content;
   const setCurrentContent = (next: string) => {
     if (value === undefined) {
@@ -26,6 +29,13 @@ export function ScratchPad({ resetKey, value, onChange }: ScratchPadProps) {
     setCurrentContent('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
+
+  const handleStageNotes = () => {
+    if (!currentContent || !onStageNotes) return;
+    onStageNotes();
+    setStageConfirmed(true);
+    setTimeout(() => setStageConfirmed(false), 2000);
+  };
 
   const handleClear = () => {
     if (!currentContent) return;
@@ -69,6 +79,23 @@ export function ScratchPad({ resetKey, value, onChange }: ScratchPadProps) {
           >
             <Heading2 className="w-3 h-3" />
           </button>
+          {onStageNotes && (
+            <button
+              onClick={handleStageNotes}
+              disabled={!currentContent}
+              className={`p-1 rounded transition-colors flex items-center gap-1 text-[10px] font-medium ${
+                stageConfirmed
+                  ? 'text-emerald-400 bg-emerald-500/10'
+                  : currentContent
+                    ? 'text-indigo-400 hover:text-indigo-200 hover:bg-indigo-500/10'
+                    : 'text-zinc-800 cursor-default'
+              }`}
+              title="Stage notes for AI — prepend to next chat message"
+            >
+              <ArrowUpRight className="w-3 h-3" />
+              {stageConfirmed ? <span>Staged!</span> : <span>Stage for AI</span>}
+            </button>
+          )}
         </div>
         <span className="text-[10px] text-zinc-700 select-none">Local only</span>
       </div>

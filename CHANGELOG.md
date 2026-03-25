@@ -1,6 +1,11 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Phase 2.1 — Concise Mode Toggle**: Added a ⚡ toggle in the ChatPanel header that forces bullet-point-only, max-5-item AI responses with no preamble; active state highlighted in amber; preference persisted to sessionStorage
+- **Phase 2.2 — Suggested Responses**: Quick-tap reply buttons now appear below action chips on the last AI message — `Yes` / `No` (indigo style) when the response ends with a question, and `Proceed` / `Explain further` (neutral style) as universal contextual follow-ups
+- **Phase 2.2 — Draft-to-Chat Integration**: Added "Stage for AI" (↗) button to the ScratchPad toolbar; clicking it stages current notes to be prepended to the next chat message; an amber banner in ChatPanel confirms staging and lets the user discard before sending; staged notes cleared automatically once consumed or on session reset; all ScratchPad and ChatPanel instances across layouts wired up
+
+## 2026-03-25 - GitHub Copilot
 - **Phase 1.1 — Multi-Configuration Layout Engine**: Added three switchable layout presets (`standard`, `architect`, `zen-focus`) with a header Layout Switcher (LayoutDashboard / PanelBottom / Maximize2 icons)
 - **Architect layout**: CSS-grid workspace — Preview + Chat side-by-side on top, full-width Terminal row on the bottom with vertical drag-to-resize handle
 - **Zen Focus layout**: Scratch Pad (left) + Preview (right) only; no terminal or chat noise
