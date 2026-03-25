@@ -1,6 +1,15 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Phase 5 — Artifact System** (complete pass)
+- **5.1 Structured Export**: Added `src/lib/exportUtils.ts` with `parseArtifactSections` (extracts UX / Logic / Architecture headings from AI messages), `generateMarkdownDocument`, `downloadMarkdown`, and `printAsPDF` (browser-native print dialog, no new dependencies)
+- **5.1 Structured Export**: Added `src/components/ExportModal.tsx` — modal showing section previews, Markdown download, and PDF export (via browser print); exported artifacts come exclusively from AI/chat-derived planning output
+- **5.2 Evolution Snapshots**: Snapshot state managed in `App.tsx` (session-only, cleared on New Project); "Snapshot Current Plan" button in the export modal captures the parsed artifact; Snapshots list tab shows timestamps and per-snapshot Markdown download; Compare tab shows two snapshots side-by-side
+- Added `Export Artifact` button to `ChatPanel.tsx` (below "Generate Implementation Plan")
+- Exported `Message` interface from `ChatPanel.tsx` for use in export utilities
+- Scratch Pad export is not included by design — the spec requires it to be explicitly user-invoked and this is deferred per roadmap
+
+## 2026-03-25 - GitHub Copilot
 - **Phase 4 — Security & Trust Layer** (complete pass, building on existing base)
 - **4.1 Containment Scan**: Added `sudo` (high-risk), `npx <pkg>`, `bash *.sh`, and `sh *.sh` patterns to `SCRIPT_PATTERNS` in `containmentScan.ts`
 - **4.1 Containment Scan**: Added `github:`, `bitbucket:`, and `gitlab:` shorthand dependency source patterns to `DEP_PATTERNS`

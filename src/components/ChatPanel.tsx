@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2 } from 'lucide-react';
+import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
-interface Message {
+export interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
@@ -25,6 +25,8 @@ interface Props {
   onCollapse?: () => void;
   /** Executes a suggested terminal command after user confirmation in parent. */
   onRunDiagnosticCommand?: (command: string) => void;
+  /** Called when the user requests an artifact export; receives the current message history. */
+  onExportArtifact?: (messages: Message[]) => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
@@ -55,7 +57,7 @@ const getDiagnosticCommands = (content: string): string[] => {
   return Array.from(commands).slice(0, 4);
 };
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand }: Props) {
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand, onExportArtifact }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -272,11 +274,22 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
         <button 
           onClick={handleGeneratePlan}
           disabled={isTyping || messages.length <= 1}
-          className="w-full mb-3 py-2.5 px-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-400 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/10 shadow-inner"
+          className="w-full mb-2 py-2.5 px-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-400 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/10 shadow-inner"
         >
           <Sparkles className="w-4 h-4" />
           Generate Implementation Plan
         </button>
+
+        {onExportArtifact && (
+          <button
+            onClick={() => onExportArtifact(messages)}
+            disabled={messages.length <= 1}
+            className="w-full mb-3 py-2 px-4 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/8"
+          >
+            <FileDown className="w-4 h-4" />
+            Export Artifact
+          </button>
+        )}
         
         <div className="relative">
           <textarea
