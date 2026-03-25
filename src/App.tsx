@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2 } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -22,6 +22,7 @@ import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
+type LayoutPreset = 'standard' | 'architect' | 'zen-focus';
 
 /** Duration (ms) for the radial-wipe-in animation — must match CSS `animate-wipe-in`. */
 const WIPE_IN_DURATION = 600;
@@ -97,6 +98,19 @@ export default function App() {
   const [destroyFadeOut, setDestroyFadeOut] = useState(false);
   /** Incremented to signal the ScratchPad to wipe its notes. */
   const [scratchKey, setScratchKey] = useState(0);
+  /** Active layout preset — persisted to sessionStorage. */
+  const [layoutPreset, setLayoutPreset] = useState<LayoutPreset>(() =>
+    (sessionStorage.getItem('layout_preset') as LayoutPreset | null) ?? 'standard'
+  );
+  /** Terminal height (px) used in the Architect layout. */
+  const [terminalHeight, setTerminalHeight] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_terminalHeight');
+    return v ? Number(v) : 220;
+  });
+  /** True when the viewport is narrow (< 1024 px) — triggers mobile bottom-drawer layout. */
+  const [isMobileLayout, setIsMobileLayout] = useState(() => window.innerWidth < 1024);
+  /** Active panel in the mobile bottom drawer. */
+  const [activeDrawerTab, setActiveDrawerTab] = useState<'terminal' | 'chat' | 'scratch' | null>(null);
   /** Local-only scratch pad content (never sent to AI). */
   const [scratchPadContent, setScratchPadContent] = useState('');
   // ── Phase 4: Security & Trust Layer ───────────────────────────────────────
@@ -139,13 +153,14 @@ export default function App() {
 
   // ── Panel drag-to-resize ───────────────────────────────────────────────────
   /** Tracks an in-progress panel-drag operation. */
-  const dragRef = useRef<{ panel: 'terminal' | 'chat' | 'scratch' | null; startX: number; startWidth: number }>({
-    panel: null, startX: 0, startWidth: 0,
-  });
+  const dragRef = useRef<{
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | null;
+    startX: number; startY: number; startWidth: number;
+  }>({ panel: null, startX: 0, startY: 0, startWidth: 0 });
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
-      const { panel, startX, startWidth } = dragRef.current;
+      const { panel, startX, startY, startWidth } = dragRef.current;
       if (!panel) return;
       const delta = e.clientX - startX;
       if (panel === 'terminal') {
@@ -154,19 +169,50 @@ export default function App() {
         setChatWidth(Math.max(240, Math.min(600, startWidth - delta)));
       } else if (panel === 'scratch') {
         setScratchWidth(Math.max(180, Math.min(520, startWidth - delta)));
+      } else if (panel === 'terminal-height') {
+        const dy = e.clientY - startY;
+        setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
       }
     };
     const onMouseUp = () => {
       if (dragRef.current.panel) {
         dragRef.current.panel = null;
         document.body.classList.remove('dragging-panel');
+        document.body.classList.remove('dragging-vertical');
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const { panel, startX, startY, startWidth } = dragRef.current;
+      if (!panel) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (panel === 'terminal') {
+        setTerminalWidth(Math.max(180, Math.min(520, startWidth + dx)));
+      } else if (panel === 'chat') {
+        setChatWidth(Math.max(240, Math.min(600, startWidth - dx)));
+      } else if (panel === 'scratch') {
+        setScratchWidth(Math.max(180, Math.min(520, startWidth - dx)));
+      } else if (panel === 'terminal-height') {
+        setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
+      }
+    };
+    const onTouchEnd = () => {
+      if (dragRef.current.panel) {
+        dragRef.current.panel = null;
+        document.body.classList.remove('dragging-panel');
+        document.body.classList.remove('dragging-vertical');
       }
     };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
 
@@ -179,7 +225,9 @@ export default function App() {
     sessionStorage.setItem('layout_chatCollapsed', String(chatCollapsed));
     sessionStorage.setItem('layout_scratchCollapsed', String(scratchCollapsed));
     sessionStorage.setItem('layout_scratchPinned', String(scratchPinned));
-  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned]);
+    sessionStorage.setItem('layout_preset', layoutPreset);
+    sessionStorage.setItem('layout_terminalHeight', String(terminalHeight));
+  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight]);
 
   // Keyboard-first Scratch Pad access (Ctrl/Cmd + . to toggle, Ctrl/Cmd + Shift + K to focus)
   useEffect(() => {
@@ -201,6 +249,13 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Mobile-layout detection
+  useEffect(() => {
+    const onResize = () => setIsMobileLayout(window.innerWidth < 1024);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   useEffect(() => {
@@ -740,12 +795,26 @@ export default function App() {
   }
 
   // Helper: start a panel drag
-  const startDrag = (panel: 'terminal' | 'chat' | 'scratch', currentWidth: number) =>
-    (e: { preventDefault: () => void; clientX: number }) => {
-      e.preventDefault();
-      dragRef.current = { panel, startX: e.clientX, startWidth: currentWidth };
-      document.body.classList.add('dragging-panel');
-    };
+  const startDrag = (
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height',
+    currentSize: number
+  ) => (e: { preventDefault: () => void; clientX: number; clientY: number }) => {
+    e.preventDefault();
+    dragRef.current = { panel, startX: e.clientX, startY: e.clientY, startWidth: currentSize };
+    document.body.classList.add('dragging-panel');
+    if (panel === 'terminal-height') document.body.classList.add('dragging-vertical');
+  };
+
+  const startTouchDrag = (
+    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height',
+    currentSize: number
+  ) => (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    dragRef.current = { panel, startX: touch.clientX, startY: touch.clientY, startWidth: currentSize };
+    document.body.classList.add('dragging-panel');
+    if (panel === 'terminal-height') document.body.classList.add('dragging-vertical');
+  };
 
   // Collapsed tab shared style
   const collapsedTab = 'flex flex-col items-center border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden';
@@ -918,6 +987,31 @@ export default function App() {
             {focusMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
 
+          {/* Layout Switcher */}
+          <div className="flex items-center gap-0.5 bg-black/40 rounded-lg p-0.5 border border-white/8">
+            <button
+              onClick={() => setLayoutPreset('standard')}
+              className={`p-1.5 rounded transition-colors ${layoutPreset === 'standard' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Standard Layout — Terminal · Preview · Chat"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayoutPreset('architect')}
+              className={`p-1.5 rounded transition-colors ${layoutPreset === 'architect' ? 'bg-indigo-500/20 text-indigo-300' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Architect Layout — Preview &amp; Chat top · Terminal bottom"
+            >
+              <PanelBottom className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayoutPreset('zen-focus')}
+              className={`p-1.5 rounded transition-colors ${layoutPreset === 'zen-focus' ? 'bg-amber-500/20 text-amber-300' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Zen Focus — Scratch Pad · Preview only"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <button 
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
@@ -929,9 +1023,478 @@ export default function App() {
       </header>
 
       {/* ── Main workspace ───────────────────────────────────────────────────── */}
-      <main className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* ── Terminal Panel (Phase 1.1 / 1.3) ────────────────────────────── */}
+      {/* ── Mobile layout (< 1024px) ──────────────────────────────────────── */}
+      {isMobileLayout ? (
+        <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+          {/* Full-height preview */}
+          <div className="flex-1 flex flex-col bg-[#09090b] min-w-0 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" />
+                Preview
+              </div>
+              
+              {previewBaseUrl && (
+                <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
+                  <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-px h-4 bg-white/10 mx-1" />
+                  <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
+                  <input 
+                    type="text" 
+                    value={browserPath}
+                    onChange={e => setBrowserPath(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)}
+                    className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]"
+                    placeholder="/"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
+                <button 
+                  onClick={() => setPreviewMode('mobile')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Mobile View"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('tablet')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Tablet View"
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('desktop')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Desktop View"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 relative bg-[#09090b] overflow-hidden">
+              {previewUrl ? (
+                <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
+                  <div 
+                    className={`transition-all duration-300 ease-in-out bg-white ${
+                      previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      'w-full h-full'
+                    }`}
+                  >
+                    <iframe 
+                      key={iframeKey}
+                      src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} 
+                      className="w-full h-full border-none"
+                      title="Preview"
+                      allow="cross-origin-isolated"
+                      referrerPolicy="no-referrer"
+                      sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
+                  {status === 'idle' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+                        <Upload className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
+                    </>
+                  ) : status === 'error' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl">
+                        <AlertCircle className="w-8 h-8 text-rose-400" />
+                      </div>
+                      <p className="text-rose-400 max-w-md text-center">{errorMsg}</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
+                        <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                      </div>
+                      <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Bottom drawer */}
+          {activeDrawerTab && (
+            <div className="h-64 shrink-0 border-t border-white/8 bg-black/45 backdrop-blur-xl flex flex-col animate-panel-in-up overflow-hidden">
+              {activeDrawerTab === 'terminal' && (
+                <>
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-white/4 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                      <TerminalIcon className="w-3.5 h-3.5" />Terminal
+                    </div>
+                    <button onClick={() => setActiveDrawerTab(null)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"><ChevronUp className="w-3.5 h-3.5" /></button>
+                  </div>
+                  <div className="flex-1 p-2 overflow-hidden min-h-0">
+                    <TerminalComponent onTerminalReady={handleTerminalReady} onTerminalData={handleTerminalData} statusMessage={recoveryMessage} />
+                  </div>
+                </>
+              )}
+              {activeDrawerTab === 'chat' && (
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setActiveDrawerTab(null)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} />
+              )}
+              {activeDrawerTab === 'scratch' && (
+                <>
+                  <div className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-white/4 shrink-0">
+                    <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                      <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
+                    </div>
+                    <button onClick={() => setActiveDrawerTab(null)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"><ChevronUp className="w-3.5 h-3.5" /></button>
+                  </div>
+                  <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+                </>
+              )}
+            </div>
+          )}
+          {/* Bottom tab bar */}
+          <div className="shrink-0 flex items-stretch border-t border-white/8 bg-black/30 backdrop-blur-xl">
+            {[
+              { id: 'terminal' as const, icon: <TerminalIcon className="w-4 h-4" />, label: 'Terminal' },
+              { id: 'chat' as const, icon: <Globe className="w-4 h-4" />, label: 'Chat' },
+              { id: 'scratch' as const, icon: <PenLine className="w-4 h-4 text-amber-400/80" />, label: 'Notes' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveDrawerTab(prev => prev === tab.id ? null : tab.id)}
+                className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors ${activeDrawerTab === tab.id ? 'text-white bg-white/8' : 'text-zinc-500 hover:text-zinc-300'}`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </main>
+
+      ) : layoutPreset === 'architect' ? (
+
+        /* ── Architect layout ─────────────────────────────────────────────── */
+        <main
+          className="flex-1 grid overflow-hidden min-h-0"
+          style={{
+            gridTemplateColumns: `1fr auto`,
+            gridTemplateRows: `1fr ${terminalCollapsed ? 32 : terminalHeight}px`,
+          }}
+        >
+          {/* Top-left: Preview */}
+          <div className="flex flex-col bg-[#09090b] overflow-hidden min-h-0 min-w-0">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" />
+                Preview
+              </div>
+              
+              {previewBaseUrl && (
+                <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
+                  <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-px h-4 bg-white/10 mx-1" />
+                  <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
+                  <input 
+                    type="text" 
+                    value={browserPath}
+                    onChange={e => setBrowserPath(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)}
+                    className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]"
+                    placeholder="/"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
+                <button 
+                  onClick={() => setPreviewMode('mobile')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Mobile View"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('tablet')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Tablet View"
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('desktop')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Desktop View"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 relative bg-[#09090b] overflow-hidden">
+              {previewUrl ? (
+                <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
+                  <div 
+                    className={`transition-all duration-300 ease-in-out bg-white ${
+                      previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      'w-full h-full'
+                    }`}
+                  >
+                    <iframe 
+                      key={iframeKey}
+                      src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} 
+                      className="w-full h-full border-none"
+                      title="Preview"
+                      allow="cross-origin-isolated"
+                      referrerPolicy="no-referrer"
+                      sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
+                  {status === 'idle' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+                        <Upload className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
+                    </>
+                  ) : status === 'error' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl">
+                        <AlertCircle className="w-8 h-8 text-rose-400" />
+                      </div>
+                      <p className="text-rose-400 max-w-md text-center">{errorMsg}</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
+                        <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                      </div>
+                      <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Top-right: Chat + Scratch stacked side-by-side */}
+          <div className="flex flex-row border-l border-white/8 overflow-hidden min-h-0">
+            {/* Chat panel */}
+            {!chatCollapsed ? (
+              <div style={{ width: chatWidth }} className="flex flex-col shrink-0 overflow-hidden">
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setChatCollapsed(true)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} />
+              </div>
+            ) : (
+              <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
+                <button onClick={() => setChatCollapsed(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title="Expand chat"><ChevronRight className="w-3.5 h-3.5" /></button>
+                <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Chat</span>
+              </div>
+            )}
+
+            {/* Chat ↔ Scratch divider */}
+            {!chatCollapsed && !scratchCollapsed && (
+              <div
+                className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                onMouseDown={startDrag('scratch', scratchWidth)}
+                onTouchStart={startTouchDrag('scratch', scratchWidth)}
+              >
+                <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            )}
+
+            {/* Scratch Pad */}
+            {!scratchCollapsed ? (
+              <div style={{ width: scratchWidth }} className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                  <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
+                  </div>
+                  <div className="flex items-center gap-0.5">
+                    <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}><ChevronRight className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>{scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}</button>
+                  </div>
+                </div>
+                <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+              </div>
+            ) : (
+              <div className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}>
+                <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand notes"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>Notes</span>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom: Terminal (full width, both columns) */}
+          <div className="col-span-2 flex flex-col border-t border-white/8 bg-black/45 backdrop-blur-xl overflow-hidden min-h-0">
+            <div
+              className="flex items-center justify-between px-4 py-2 border-b border-white/8 bg-white/4 shrink-0 cursor-row-resize select-none"
+              onMouseDown={startDrag('terminal-height', terminalHeight)}
+              onTouchStart={startTouchDrag('terminal-height', terminalHeight)}
+              title="Drag to resize terminal height"
+            >
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                <GripVertical className="w-3.5 h-3.5 text-zinc-600" />
+                <TerminalIcon className="w-3.5 h-3.5" />Terminal
+              </div>
+              <button onClick={() => setTerminalCollapsed(c => !c)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title={terminalCollapsed ? 'Expand terminal' : 'Collapse terminal'}>
+                {terminalCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronLeft className="rotate-90 w-3.5 h-3.5" />}
+              </button>
+            </div>
+            {!terminalCollapsed && (
+              <div className="flex-1 p-2 overflow-hidden min-h-0">
+                <TerminalComponent onTerminalReady={handleTerminalReady} onTerminalData={handleTerminalData} statusMessage={recoveryMessage} />
+              </div>
+            )}
+          </div>
+        </main>
+
+      ) : layoutPreset === 'zen-focus' ? (
+
+        /* ── Zen Focus layout ─────────────────────────────────────────────── */
+        <main className="flex-1 flex overflow-hidden min-h-0">
+          {/* Scratch Pad (left) */}
+          <div
+            style={{ width: Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) }}
+            className="flex flex-col border-r border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
+                <PenLine className="w-3.5 h-3.5 text-amber-400/80" />
+                <span className="text-amber-300/90">Scratch Pad</span>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>{scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}</button>
+              </div>
+            </div>
+            <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+          </div>
+
+          {/* Drag divider */}
+          <div
+            className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+            onMouseDown={startDrag('scratch', scratchWidth)}
+            onTouchStart={startTouchDrag('scratch', scratchWidth)}
+          >
+            <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+
+          {/* Preview (right, fills remaining space) */}
+          <div className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" />
+                Preview
+              </div>
+              
+              {previewBaseUrl && (
+                <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
+                  <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  </button>
+                  <div className="w-px h-4 bg-white/10 mx-1" />
+                  <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
+                  <input 
+                    type="text" 
+                    value={browserPath}
+                    onChange={e => setBrowserPath(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)}
+                    className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]"
+                    placeholder="/"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
+                <button 
+                  onClick={() => setPreviewMode('mobile')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Mobile View"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('tablet')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Tablet View"
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => setPreviewMode('desktop')}
+                  className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  title="Desktop View"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 relative bg-[#09090b] overflow-hidden">
+              {previewUrl ? (
+                <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
+                  <div 
+                    className={`transition-all duration-300 ease-in-out bg-white ${
+                      previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' :
+                      'w-full h-full'
+                    }`}
+                  >
+                    <iframe 
+                      key={iframeKey}
+                      src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} 
+                      className="w-full h-full border-none"
+                      title="Preview"
+                      allow="cross-origin-isolated"
+                      referrerPolicy="no-referrer"
+                      sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
+                  {status === 'idle' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+                        <Upload className="w-8 h-8 text-zinc-500" />
+                      </div>
+                      <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
+                    </>
+                  ) : status === 'error' ? (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl">
+                        <AlertCircle className="w-8 h-8 text-rose-400" />
+                      </div>
+                      <p className="text-rose-400 max-w-md text-center">{errorMsg}</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl">
+                        <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                      </div>
+                      <p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </main>
+
+      ) : (
+
+        /* ── Standard layout (default) ───────────────────────────────────── */
+        <main className="flex-1 flex overflow-hidden min-h-0">
+
+          {/* ── Terminal Panel (Phase 1.1 / 1.3) ────────────────────────────── */}
         {!focusMode && !terminalCollapsed ? (
           <div
             style={{ width: terminalWidth }}
@@ -977,8 +1540,9 @@ export default function App() {
         {/* Drag divider: Terminal ↔ Preview */}
         {!focusMode && !terminalCollapsed && (
           <div
-            className="w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+            className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
             onMouseDown={startDrag('terminal', terminalWidth)}
+            onTouchStart={startTouchDrag('terminal', terminalWidth)}
           >
             <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
@@ -1087,8 +1651,9 @@ export default function App() {
         {/* Drag divider: Preview ↔ Chat */}
         {!focusMode && !chatCollapsed && (
           <div
-            className="w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+            className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
             onMouseDown={startDrag('chat', chatWidth)}
+            onTouchStart={startTouchDrag('chat', chatWidth)}
           >
             <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
@@ -1136,8 +1701,9 @@ export default function App() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+              className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
               onMouseDown={startDrag('scratch', scratchWidth)}
+              onTouchStart={startTouchDrag('scratch', scratchWidth)}
             >
               <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </motion.div>
@@ -1215,7 +1781,8 @@ export default function App() {
           )}
         </AnimatePresence>
 
-      </main>
+        </main>
+      )}
     </div>
   );
 }
