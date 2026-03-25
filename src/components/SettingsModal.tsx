@@ -26,8 +26,8 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-950 border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+    <div className="fixed inset-0 bg-black/75 backdrop-blur-xl flex items-center justify-center z-50 p-4">
+      <div className="bg-black/70 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-[0_0_80px_rgba(0,0,0,0.6),0_0_40px_rgba(99,102,241,0.08)] animate-panel-in-up">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-semibold text-white tracking-wide">AI Settings</h2>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
@@ -41,7 +41,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
             <select 
               value={localSettings.provider}
               onChange={e => setLocalSettings({...localSettings, provider: e.target.value as Provider})}
-              className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+              className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
             >
               <option value="gemini">Google Gemini</option>
               <option value="openai">OpenAI</option>
@@ -58,7 +58,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
                 value={localSettings.apiKey}
                 onChange={e => setLocalSettings({...localSettings, apiKey: e.target.value})}
                 placeholder={`Enter ${localSettings.provider === 'gemini' ? 'Gemini' : localSettings.provider === 'openai' ? 'OpenAI' : 'Anthropic'} API Key`}
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
               />
               <p className="text-xs text-zinc-500 mt-2">
                 Your key is stored locally in your browser and sent securely to the backend proxy.
@@ -74,7 +74,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
                 value={localSettings.localUrl}
                 onChange={e => setLocalSettings({...localSettings, localUrl: e.target.value})}
                 placeholder="http://localhost:11434/api/chat"
-                className="w-full bg-black/50 border border-white/10 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all"
+                className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
               />
               <p className="text-xs text-zinc-500 mt-2">
                 Make sure your local model (like Ollama) allows CORS from this origin.

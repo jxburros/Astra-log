@@ -192,8 +192,8 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/40 backdrop-blur-sm border-l border-white/10">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-white/5">
+    <div className="flex flex-col h-full bg-black/45 backdrop-blur-xl border-l border-white/8">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 bg-white/4">
         <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
           <Bot className="w-3.5 h-3.5 text-indigo-400" />
           AI Brainstorming
@@ -213,9 +213,9 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] px-4 py-2.5 text-sm shadow-sm ${
-              msg.role === 'user' 
-                ? 'bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white rounded-2xl rounded-br-sm shadow-lg shadow-indigo-500/20' 
-                : 'bg-white/5 text-zinc-200 rounded-2xl rounded-bl-sm border border-white/10 backdrop-blur-md'
+              msg.role === 'user'
+                ? 'bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white rounded-2xl rounded-br-sm shadow-lg shadow-indigo-500/25 ring-1 ring-white/10'
+                : 'bg-white/4 text-zinc-200 rounded-2xl rounded-bl-sm border border-white/8 backdrop-blur-lg shadow-sm'
             }`}>
               <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
               {msg.role === 'assistant' && i === messages.length - 1 && (
@@ -268,7 +268,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 border-t border-white/10 bg-white/5">
+      <div className="p-3 border-t border-white/8 bg-white/3">
         <button 
           onClick={handleGeneratePlan}
           disabled={isTyping || messages.length <= 1}
@@ -289,7 +289,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
               }
             }}
             placeholder="Share an idea..."
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-4 pr-12 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 resize-none transition-all shadow-inner"
+            className="w-full bg-black/50 border border-white/8 rounded-xl pl-4 pr-12 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 resize-none transition-all shadow-inner backdrop-blur-sm"
             rows={1}
             style={{ minHeight: '46px', maxHeight: '150px' }}
           />
