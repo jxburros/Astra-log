@@ -984,6 +984,7 @@ export default function App() {
                     className="w-full h-full border-none"
                     title="Preview"
                     allow="cross-origin-isolated"
+                    referrerPolicy="no-referrer"
                     sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
                   />
                 </div>

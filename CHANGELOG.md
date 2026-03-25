@@ -1,6 +1,13 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+- **Phase 4 — Security & Trust Layer** (complete pass, building on existing base)
+- **4.1 Containment Scan**: Added `sudo` (high-risk), `npx <pkg>`, `bash *.sh`, and `sh *.sh` patterns to `SCRIPT_PATTERNS` in `containmentScan.ts`
+- **4.1 Containment Scan**: Added `github:`, `bitbucket:`, and `gitlab:` shorthand dependency source patterns to `DEP_PATTERNS`
+- **4.3 Iframe Sandboxing**: Added `referrerPolicy="no-referrer"` to the preview iframe to prevent the main app URL from leaking to the sandboxed preview
+- Fixed pre-existing TypeScript lint error: added `src/vite-env.d.ts` with SVG module type declaration so `npm run lint` passes cleanly
+
+## 2026-03-25 - GitHub Copilot
 - Updated `server.ts` to read the `PORT` environment variable (defaults to 3000) instead of hardcoding port 3000
 - Added `findAvailablePort` helper: if the preferred port is busy the server automatically falls back to any free port assigned by the OS
 - Updated `.env.example` to document the new `PORT` variable
