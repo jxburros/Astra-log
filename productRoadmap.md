@@ -58,13 +58,13 @@ The following features are fully implemented and verified in the current build:
 The 1.0 release targets the perfection of the "Technical Consultant" persona, providing a seamless "Technical Tax" removal for any project.
 
 ### 1.0 Development Items (Final Push)
-- [ ] **AI App Reviewer**: The AI "looks" at the rendered preview to provide automated notes on accessibility (A11y), UI/UX critiques, and color contrast improvements.
-- [ ] **BYOK Enhancements**:
+- [x] **AI App Reviewer**: The AI "looks" at the rendered preview to provide automated notes on accessibility (A11y), UI/UX critiques, and color contrast improvements.
+- [x] **BYOK Enhancements**:
     - **Local Model Discovery**: Update the `/api/models` endpoint to fetch live tags from local providers (e.g., Ollama’s `/api/tags`) instead of using hardcoded defaults.
     - **2026 Model Registry**: Update `FALLBACK_MODELS` to current standards, removing deprecated versions from the Gemini 2.5 and Claude 4.5 eras.
-- [ ] **Custom Persona Settings**: Add a "Custom Instructions" field in the Settings Modal to allow users to override or append to the default technical consultant behavior.
-- [ ] **Visual Plan Diffs**: Complete the "Compare" view in the Export Modal to provide clear visual highlighting of additions/deletions between captured snapshots.
-- [ ] **Session Freshness Indicator**: Add a subtle timer near the "New Project" button to track the active duration of the current transient session.
+- [x] **Custom Persona Settings**: Add a "Custom Instructions" field in the Settings Modal to allow users to override or append to the default technical consultant behavior.
+- [x] **Visual Plan Diffs**: Complete the "Compare" view in the Export Modal to provide clear visual highlighting of additions/deletions between captured snapshots.
+- [x] **Session Freshness Indicator**: Add a subtle timer near the "New Project" button to track the active duration of the current transient session.
 
 ---
 

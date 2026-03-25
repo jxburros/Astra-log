@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare } from 'lucide-react';
+import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 export interface Message {
@@ -31,6 +31,10 @@ interface Props {
   stagedNotes?: string;
   /** Called once staged notes have been consumed so the parent can clear them. */
   onClearStagedNotes?: () => void;
+  /** Called when the user requests an AI review of the rendered preview.
+   * Passing any non-null value enables the "Review App" button; the actual
+   * review is initiated internally via handleReviewApp → handleSend. */
+  onRequestAIReview?: () => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
@@ -69,7 +73,7 @@ const getDiagnosticCommands = (content: string): string[] => {
   return Array.from(commands).slice(0, 4);
 };
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand, onExportArtifact, stagedNotes, onClearStagedNotes }: Props) {
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand, onExportArtifact, stagedNotes, onClearStagedNotes, onRequestAIReview }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -158,7 +162,10 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
       const conciseModeLayer = conciseMode
         ? '\nConcise mode is active. Respond only in bullet points. Maximum 5 items. Omit all preamble and closing remarks.'
         : '';
-      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- BEHAVIOR LAYER ---\n${behaviorLayer}${conciseModeLayer}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
+      const customInstructionsLayer = settings.customInstructions?.trim()
+        ? `\n\n--- CUSTOM INSTRUCTIONS ---\n${settings.customInstructions.trim()}`
+        : '';
+      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- BEHAVIOR LAYER ---\n${behaviorLayer}${conciseModeLayer}${customInstructionsLayer}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
 
       let reply = '';
       
@@ -168,7 +175,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'llama3', // default model for Ollama
+            model: settings.model || 'llama3',
             messages: [
               { role: 'system', content: dynamicSystemPrompt },
               ...newMessages
@@ -229,6 +236,15 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
   const handleGeneratePlan = () => {
     const planPrompt = "Based on everything we've talked through, can you put together a comprehensive implementation plan? Break it down into clear steps, any architecture changes needed, and the key components to build.";
     handleSend(planPrompt, true);
+  };
+
+  const handleReviewApp = () => {
+    const reviewPrompt = `[AI App Review Request] Please perform a structured review of the currently rendered app based on the project context. Analyze and provide specific, actionable notes on:
+1. **Accessibility (A11y)**: Missing ARIA labels, low contrast text, non-semantic HTML, missing alt attributes, keyboard navigation issues.
+2. **UI/UX Critique**: Layout issues, inconsistent spacing, confusing user flows, missing loading/error states.
+3. **Color Contrast**: Identify any text or UI elements that likely fail WCAG AA contrast ratios (4.5:1 for normal text, 3:1 for large text).
+Format your response with clear headings for each category and bullet points for each finding. If no issues are found in a category, state that explicitly.`;
+    handleSend(reviewPrompt, true);
   };
 
   return (
@@ -360,10 +376,21 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           <button
             onClick={() => onExportArtifact(messages)}
             disabled={messages.length <= 1}
-            className="w-full mb-3 py-2 px-4 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/8"
+            className="w-full mb-2 py-2 px-4 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/8"
           >
             <FileDown className="w-4 h-4" />
             Export Artifact
+          </button>
+        )}
+
+        {onRequestAIReview && (
+          <button
+            onClick={handleReviewApp}
+            disabled={isTyping || messages.length <= 1}
+            className="w-full mb-3 py-2 px-4 bg-violet-500/8 hover:bg-violet-500/15 disabled:opacity-50 disabled:cursor-not-allowed text-violet-400 hover:text-violet-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-violet-500/20"
+          >
+            <ScanEye className="w-4 h-4" />
+            Review App (A11y &amp; UX)
           </button>
         )}
 

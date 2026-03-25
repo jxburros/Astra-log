@@ -8,6 +8,7 @@ export interface Settings {
   apiKey: string;
   localUrl: string;
   model: string;
+  customInstructions?: string;
 }
 
 interface ModelOption {
@@ -35,18 +36,19 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
 
   // Fetch models whenever the modal opens
   useEffect(() => {
-    if (isOpen && localSettings.provider !== 'local') {
-      doFetchModels(localSettings.provider, localSettings.apiKey, localSettings.model);
+    if (isOpen) {
+      doFetchModels(localSettings.provider, localSettings.apiKey, localSettings.model, localSettings.localUrl);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  async function doFetchModels(provider: Provider, apiKey: string, currentModel: string) {
+  async function doFetchModels(provider: Provider, apiKey: string, currentModel: string, localUrl?: string) {
     setModelsLoading(true);
     setModelsFallback(false);
     try {
       const params = new URLSearchParams({ provider });
       if (apiKey) params.append('apiKey', apiKey);
+      if (provider === 'local' && localUrl) params.append('localUrl', localUrl);
       const res = await fetch(`/api/models?${params}`);
       const data = await res.json();
       const fetched: ModelOption[] = data.models || [];
@@ -65,9 +67,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   function handleProviderChange(provider: Provider) {
     setLocalSettings(prev => ({ ...prev, provider, model: '' }));
     setModels([]);
-    if (provider !== 'local') {
-      doFetchModels(provider, localSettings.apiKey, '');
-    }
+    doFetchModels(provider, localSettings.apiKey, '', localSettings.localUrl);
   }
 
   function handleApiKeyChange(apiKey: string) {
@@ -77,9 +77,17 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (provider !== 'local') {
       debounceRef.current = setTimeout(() => {
-        doFetchModels(provider, apiKey, currentModel);
+        doFetchModels(provider, apiKey, currentModel, localSettings.localUrl);
       }, 700);
     }
+  }
+
+  function handleLocalUrlChange(localUrl: string) {
+    setLocalSettings(prev => ({ ...prev, localUrl }));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      doFetchModels('local', '', localSettings.model, localUrl);
+    }, 700);
   }
 
   if (!isOpen) return null;
@@ -125,57 +133,74 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
             </div>
           )}
 
-          {localSettings.provider !== 'local' && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium text-zinc-400">Model</label>
-                <button
-                  onClick={() => doFetchModels(localSettings.provider, localSettings.apiKey, localSettings.model)}
-                  disabled={modelsLoading}
-                  className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
-                  title="Refresh model list"
-                >
-                  <RefreshCw className={`w-3 h-3 ${modelsLoading ? 'animate-spin' : ''}`} />
-                  {modelsLoading ? 'Fetching…' : 'Refresh'}
-                </button>
-              </div>
-              <select
-                value={localSettings.model}
-                onChange={e => setLocalSettings(prev => ({ ...prev, model: e.target.value }))}
-                disabled={modelsLoading || models.length === 0}
-                className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all disabled:opacity-50"
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-zinc-400">Model</label>
+              <button
+                onClick={() => doFetchModels(localSettings.provider, localSettings.apiKey, localSettings.model, localSettings.localUrl)}
+                disabled={modelsLoading}
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
+                title="Refresh model list"
               >
-                {models.length === 0 ? (
-                  <option value="">{modelsLoading ? 'Loading models…' : 'Enter API key to load models'}</option>
-                ) : (
-                  models.map(m => (
-                    <option key={m.id} value={m.id}>{m.name}</option>
-                  ))
-                )}
-              </select>
-              {modelsFallback && !modelsLoading && (
-                <p className="text-xs text-zinc-600 mt-1.5">
-                  Showing default models. Add a valid API key to fetch the live list.
-                </p>
-              )}
+                <RefreshCw className={`w-3 h-3 ${modelsLoading ? 'animate-spin' : ''}`} />
+                {modelsLoading ? 'Fetching…' : 'Refresh'}
+              </button>
             </div>
-          )}
+            <select
+              value={localSettings.model}
+              onChange={e => setLocalSettings(prev => ({ ...prev, model: e.target.value }))}
+              disabled={modelsLoading || models.length === 0}
+              className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all disabled:opacity-50"
+            >
+              {models.length === 0 ? (
+                <option value="">{modelsLoading ? 'Loading models…' : localSettings.provider === 'local' ? 'Enter Ollama URL above to discover models' : 'Enter API key to load models'}</option>
+              ) : (
+                models.map(m => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))
+              )}
+            </select>
+            {modelsFallback && !modelsLoading && localSettings.provider !== 'local' && (
+              <p className="text-xs text-zinc-600 mt-1.5">
+                Showing default models. Add a valid API key to fetch the live list.
+              </p>
+            )}
+            {modelsFallback && !modelsLoading && localSettings.provider === 'local' && (
+              <p className="text-xs text-zinc-600 mt-1.5">
+                Ollama not reachable. Make sure it's running and the URL is correct.
+              </p>
+            )}
+          </div>
 
           {localSettings.provider === 'local' && (
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Local Model URL</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">Ollama Base URL</label>
               <input
                 type="text"
                 value={localSettings.localUrl}
-                onChange={e => setLocalSettings({...localSettings, localUrl: e.target.value})}
-                placeholder="http://localhost:11434/api/chat"
+                onChange={e => handleLocalUrlChange(e.target.value)}
+                placeholder="http://localhost:11434"
                 className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
               />
               <p className="text-xs text-zinc-500 mt-2">
-                Make sure your local model (like Ollama) allows CORS from this origin.
+                Models are fetched live from Ollama's <code className="text-zinc-400">/api/tags</code> endpoint. Make sure Ollama allows CORS from this origin.
               </p>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-zinc-400 mb-1.5">Custom Instructions <span className="text-zinc-600 font-normal">(optional)</span></label>
+            <textarea
+              value={localSettings.customInstructions || ''}
+              onChange={e => setLocalSettings(prev => ({ ...prev, customInstructions: e.target.value }))}
+              placeholder="Override or extend the default consultant persona. E.g. &quot;Focus on accessibility and WCAG compliance in all responses.&quot;"
+              rows={3}
+              className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all resize-none text-sm"
+            />
+            <p className="text-xs text-zinc-500 mt-2">
+              These instructions are appended to the AI's system prompt every session.
+            </p>
+          </div>
         </div>
 
         <div className="mt-8 flex justify-end gap-3">
