@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-03-25 - Codex
+- Updated the app header to use the repository logo asset `Astra-log-logo.svg` as the in-app brand mark.
+- Removed the previous sparkle icon + text lockup in favor of the new logo image in `src/App.tsx`.
+
 ## 2026-03-25 - GitHub Copilot
 - Rebranded app from "NOVA/sandbox" to "Astra/log"
 - Updated page title in `index.html`
