@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2 } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -18,6 +18,9 @@ import { ContainmentScanModal } from './components/ContainmentScanModal';
 import { PermissionDialog } from './components/PermissionDialog';
 import { ExportModal } from './components/ExportModal';
 import type { PlanSnapshot } from './components/ExportModal';
+import { WelcomeModal } from './components/WelcomeModal';
+import { WorkspaceTour } from './components/WorkspaceTour';
+import { HelpGuide } from './components/HelpGuide';
 import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
@@ -135,6 +138,15 @@ export default function App() {
   const [exportSourceMessages, setExportSourceMessages] = useState<Message[]>([]);
   /** Session-only plan snapshots; cleared when a new project session starts. */
   const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
+  // ── Phase 3: Onboarding & Help ─────────────────────────────────────────────
+  /** Whether the one-time welcome modal is visible. */
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState<boolean>(
+    () => localStorage.getItem('astra_welcome_seen') !== 'true'
+  );
+  /** Whether the 3-step workspace tour overlay is active. */
+  const [isTourOpen, setIsTourOpen] = useState(false);
+  /** Whether the in-app help / usage guide modal is open. */
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   // Keep a ref so async boot callbacks always read the latest settings
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -243,6 +255,28 @@ export default function App() {
   const handleSaveSettings = (newSettings: Settings) => {
     setSettings(newSettings);
     localStorage.setItem('ai_settings', JSON.stringify(newSettings));
+  };
+
+  // ── Phase 3: Welcome / Tour / Help handlers ────────────────────────────────
+  const handleWelcomeDismiss = () => {
+    localStorage.setItem('astra_welcome_seen', 'true');
+    setIsWelcomeOpen(false);
+  };
+
+  const handleWelcomeStartTour = () => {
+    localStorage.setItem('astra_welcome_seen', 'true');
+    setIsWelcomeOpen(false);
+    // Switch to standard layout so all three tour panels are visible
+    setLayoutPreset('standard');
+    setFocusMode(false);
+    setTerminalCollapsed(false);
+    setChatCollapsed(false);
+    setScratchCollapsed(false);
+    setIsTourOpen(true);
+  };
+
+  const handleTourComplete = () => {
+    setIsTourOpen(false);
   };
 
   // ── Phase 4.1: Containment scan helpers ───────────────────────────────────
@@ -923,6 +957,24 @@ export default function App() {
         onTakeSnapshot={handleTakeSnapshot}
       />
 
+      {/* ── Phase 3.1: Welcome Modal (one-time) ─────────────────────────────── */}
+      {isWelcomeOpen && (
+        <WelcomeModal
+          onStartTour={handleWelcomeStartTour}
+          onSkip={handleWelcomeDismiss}
+        />
+      )}
+
+      {/* ── Phase 3.1: Workspace Tour ────────────────────────────────────────── */}
+      {isTourOpen && (
+        <WorkspaceTour onComplete={handleTourComplete} />
+      )}
+
+      {/* ── Phase 3.2: Help / Usage Guide ────────────────────────────────────── */}
+      {isHelpOpen && (
+        <HelpGuide onClose={() => setIsHelpOpen(false)} />
+      )}
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-black/30 backdrop-blur-xl shrink-0 relative z-10">
         <div className="flex items-center gap-3">
@@ -1027,6 +1079,15 @@ export default function App() {
             title="AI Settings"
           >
             <SettingsIcon className="w-5 h-5" />
+          </button>
+
+          {/* Phase 3.2 — Help guide */}
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+            title="Usage Guide &amp; Keyboard Shortcuts"
+          >
+            <HelpCircle className="w-5 h-5" />
           </button>
         </div>
       </header>
@@ -1506,6 +1567,7 @@ export default function App() {
           {/* ── Terminal Panel (Phase 1.1 / 1.3) ────────────────────────────── */}
         {!focusMode && !terminalCollapsed ? (
           <div
+            data-tour="terminal"
             style={{ width: terminalWidth }}
             className="flex flex-col border-r border-white/8 bg-black/45 backdrop-blur-xl shrink-0 overflow-hidden animate-panel-in-left"
           >
@@ -1558,7 +1620,7 @@ export default function App() {
         )}
 
         {/* ── Preview Panel ────────────────────────────────────────────────── */}
-        <div className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
+        <div data-tour="preview" className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Globe className="w-3.5 h-3.5" />
@@ -1730,6 +1792,7 @@ export default function App() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 24 }}
               transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              data-tour="scratch"
               style={{ width: focusMode ? Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) : scratchWidth }}
               className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
             >

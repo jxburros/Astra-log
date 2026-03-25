@@ -33,6 +33,9 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Artifact Export (multi-style)** — open "Export Artifact" to choose export style: **Simple recap of notes sent to AI**, **Implementation plan**, or **Structured fix list (no plan)**; each style can be downloaded as Markdown (`.md`), PDF (via browser print), plain text (`.txt`), HTML (`.html`), or JSON (`.json`)
 - **Optional Scratch Pad Addendum** — export flow includes a user-controlled toggle to append private Scratch Pad notes at the bottom of the document; Scratch Pad content remains local and is never sent to AI
 - **Evolution Snapshots** — take snapshots of the currently selected export style at any point during a session; view all snapshots in the Snapshots tab; compare any two snapshots side-by-side in the Compare tab; all snapshots are session-only and cleared on "New Project"
+- **Welcome Onboarding** — a one-time splash screen on first launch explains the Zero Persistence and Consultant-Only principles; users can immediately launch a guided workspace tour
+- **Workspace Tour** — a 3-step guided tour (Terminal → Preview → Scratch Pad) with SVG spotlight highlighting and step-by-step descriptions; available on first launch or re-launchable from the welcome flow
+- **In-App Help Guide** — click the `?` icon in the header to open a usage guide with a keyboard shortcuts cheat sheet and workflow tips; always available without leaving the workspace
 
 ## Tech Stack
 
