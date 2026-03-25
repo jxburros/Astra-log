@@ -1,5 +1,5 @@
 {
-  "name": "WebContainer Zip Preview",
+  "name": "Astra/log",
   "description": "Upload a zip file of a Node.js project to run npm install and preview it directly in the browser using WebContainers.",
   "requestFramePermissions": []
 }

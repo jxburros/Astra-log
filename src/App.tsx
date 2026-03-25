@@ -679,7 +679,7 @@ export default function App() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-600 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
-          <h1 className="text-xl font-semibold tracking-wide text-white">NOVA<span className="text-white/40 font-light">/sandbox</span></h1>
+          <h1 className="text-xl font-semibold tracking-wide text-white">Astra<span className="text-white/40 font-light">/log</span></h1>
         </div>
         
         <div className="flex items-center gap-3">

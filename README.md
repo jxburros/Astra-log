@@ -2,7 +2,7 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# NOVA/sandbox
+# Astra/log
 
 An in-browser Node.js sandbox that lets you upload a zip file of any Node.js project, run it live inside a [WebContainer](https://webcontainers.io/), and chat with an AI assistant about your code — all without leaving the browser.
 
@@ -56,7 +56,7 @@ npm start
 
 ## Desktop Installation (Tauri v2)
 
-If you want to run NOVA/sandbox as a desktop application and produce a native installer (`.exe`, `.app`, etc.), you can build it with Tauri v2.
+If you want to run Astra/log as a desktop application and produce a native installer (`.exe`, `.app`, etc.), you can build it with Tauri v2.
 
 ### Prerequisites
 
