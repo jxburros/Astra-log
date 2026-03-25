@@ -17,10 +17,13 @@ const SCRIPT_PATTERNS: { pattern: RegExp; message: string; level: ScanLevel }[] 
   { pattern: /rm\s+-[rf]{1,2}\s+\//, message: 'May delete critical system files', level: 'high-risk' },
   { pattern: /https?:\/\/[^\s]+\.sh(\s|$|;|&&|\|\|)/, message: 'Downloads and runs a remote shell script', level: 'high-risk' },
   { pattern: /\bchmod\s+[0-9]*[7][0-9]*\s/, message: 'Grants broad execute permissions', level: 'high-risk' },
+  { pattern: /\bsudo\b/, message: 'Escalates privileges with sudo', level: 'high-risk' },
   { pattern: /\bcurl\b/, message: 'Fetches remote content with curl', level: 'warning' },
   { pattern: /\bwget\b/, message: 'Fetches remote content with wget', level: 'warning' },
   { pattern: /\bpowershell\b/i, message: 'Invokes PowerShell', level: 'warning' },
   { pattern: /node\s+-e\s+['"]/, message: 'Runs inline Node.js code via -e flag', level: 'warning' },
+  { pattern: /\bnpx\s+(?!--\s?)[\w@]/, message: 'Runs a package directly via npx without installing', level: 'warning' },
+  { pattern: /\b(bash|sh)\s+\S+\.sh\b/, message: 'Executes a shell script file', level: 'warning' },
 ];
 
 /** Dependency version specifiers that indicate non-registry sources. */
@@ -30,6 +33,9 @@ const DEP_PATTERNS: { pattern: RegExp; message: string; level: ScanLevel }[] = [
   { pattern: /^git\+https?:\/\//, message: 'Loaded from a remote git repository', level: 'warning' },
   { pattern: /^https?:\/\//, message: 'Loaded from a raw remote URL', level: 'warning' },
   { pattern: /^file:/, message: 'Loaded from a local file path', level: 'warning' },
+  { pattern: /^github:/, message: 'Loaded directly from a GitHub repository', level: 'warning' },
+  { pattern: /^bitbucket:/, message: 'Loaded directly from a Bitbucket repository', level: 'warning' },
+  { pattern: /^gitlab:/, message: 'Loaded directly from a GitLab repository', level: 'warning' },
 ];
 
 /** Lifecycle hooks that execute automatically during install. */
