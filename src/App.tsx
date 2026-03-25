@@ -33,6 +33,8 @@ const WIPE_IN_DURATION = 600;
 const WIPE_OUT_DURATION = 300;
 /** Minimum Scratch Pad width (px) when Focus Mode is active. */
 const FOCUS_MODE_SCRATCH_MIN_WIDTH = 380;
+/** Minimum width (px) for the Preview panel in the standard layout. */
+const PREVIEW_MIN_WIDTH = 300;
 
 export default function App() {
   const [status, setStatus] = useState<Status>('idle');
@@ -179,6 +181,8 @@ export default function App() {
   const terminalOutputBufferRef = useRef<string>('');
   /** Incremented on each new project session; lets processZipFile detect stale calls. */
   const processSessionRef = useRef<number>(0);
+  /** Always holds latest rightPanelWidth so the drag handler (closed over []) can read it. */
+  const rightPanelWidthRef = useRef(620);
 
   // ── Panel drag-to-resize ───────────────────────────────────────────────────
   /** Tracks an in-progress panel-drag operation. */
@@ -204,7 +208,7 @@ export default function App() {
       } else if (panel === 'right-panel') {
         setRightPanelWidth(Math.max(300, Math.min(900, startWidth - delta)));
       } else if (panel === 'chat-scratch') {
-        const newChatWidth = Math.max(180, Math.min(rightPanelWidth - 180, startWidth + delta));
+        const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + delta));
         setChatWidth(newChatWidth);
       }
     };
@@ -237,6 +241,7 @@ export default function App() {
     sessionStorage.setItem('layout_terminalSide', terminalSide);
     sessionStorage.setItem('layout_chatFirst', String(chatFirst));
     sessionStorage.setItem('layout_rightPanelWidth', String(rightPanelWidth));
+    rightPanelWidthRef.current = rightPanelWidth;
   }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight, terminalSide, chatFirst, rightPanelWidth]);
 
   // Keyboard-first Scratch Pad access (Ctrl/Cmd + . to toggle, Ctrl/Cmd + Shift + K to focus)
@@ -872,7 +877,7 @@ export default function App() {
       } else if (p === 'right-panel') {
         setRightPanelWidth(Math.max(300, Math.min(900, startWidth - dx)));
       } else if (p === 'chat-scratch') {
-        const newChatWidth = Math.max(180, Math.min(rightPanelWidth - 180, startWidth + dx));
+        const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + dx));
         setChatWidth(newChatWidth);
       }
     };
@@ -1669,7 +1674,7 @@ export default function App() {
           )}
 
           {/* ── Preview Panel ────────────────────────────────────────────────── */}
-          <div data-tour="preview" className="flex-1 flex flex-col bg-[#09090b] min-w-[260px] overflow-hidden">
+          <div data-tour="preview" className="flex-1 flex flex-col bg-[#09090b] overflow-hidden" style={{ minWidth: PREVIEW_MIN_WIDTH }}>
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
               <div className="flex items-center gap-2">
                 <Globe className="w-3.5 h-3.5" />

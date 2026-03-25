@@ -211,3 +211,12 @@ button, a, input, select, textarea, label {
   user-select: none !important;
   cursor: row-resize !important;
 }
+
+/* ── Layout edit mode panel highlight ─────────────────────────────────── */
+@keyframes edit-ring-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.30); }
+  50%       { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.55), 0 0 12px rgba(139, 92, 246, 0.18); }
+}
+.layout-edit-mode-panel {
+  animation: edit-ring-pulse 2.2s ease-in-out infinite;
+}

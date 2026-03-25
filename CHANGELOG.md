@@ -1,15 +1,12 @@
 # Changelog
 
-## 2025-07-17 - GitHub Copilot
-- **Responsive breakpoint**: Lowered `isMobileLayout` threshold from `< 1024` to `< 900` px so the mobile drawer activates earlier on mid-size windows
-- **Chat + Scratch side-by-side**: Restructured the standard layout to combine Chat and Scratch Pad into a single "right panel" container; when one is collapsed the other expands to fill the full right panel width; internal drag divider resizes between them
-- **Right panel drag handle**: Added `right-panel` drag type so users can resize the combined Chat+Scratch area against the Preview with a single drag handle
-- **Layout Edit Mode** (`layoutEditMode` state + `Move` icon toggle in header): when active, panels get a violet ring indicator; Terminal panel shows arrow buttons to swap `terminalSide` (`left`/`right`); Scratch Pad shows arrow buttons to swap `chatFirst` order within the right panel
-- **Terminal side toggle** (`terminalSide` state): Terminal can now be moved to the left or right of the Preview; persisted in sessionStorage
-- **Chat-first order toggle** (`chatFirst` state): Chat and Scratch Pad order within the right panel is user-configurable; persisted in sessionStorage
-- **`rightPanelWidth` state**: Total width of the combined right panel persisted in sessionStorage (default 620 px)
-- **Focus mode Scratch Pad**: Moved into the new layout structure as a dedicated right section so it still expands correctly in Focus/Zen mode
-- Updated `startDrag` and `startTouchDrag` function signatures to accept `'right-panel'` and `'chat-scratch'` panel types
+## 2026-03-25 - GitHub Copilot
+- **Responsive Layout**: Lowered mobile/drawer layout breakpoint from 1024 px to 900 px so mid-size laptops get the full-height Preview + collapsible bottom-drawer experience
+- **Chat + Scratch Pad side-by-side**: In the Standard layout, Chat and Scratch Pad now live inside a single combined right panel; both panels sit horizontally next to each other; when one is collapsed the other expands to fill the full right-panel width
+- **Right-panel drag-to-resize**: A new drag divider on the left edge of the combined right panel lets users resize the entire panel; the Preview (flex-1) adjusts to fill the freed space; an internal drag divider between Chat and Scratch Pad resizes them relative to each other within the panel
+- **Layout Edit Mode**: New ✥ (Move) toggle in the header activates edit mode; active panels receive a pulsing violet ring; Terminal header shows a "move to right / move to left" arrow; Scratch Pad header shows arrows to swap its position relative to Chat; Terminal side (`left`/`right`) and Chat/Scratch order are persisted to sessionStorage
+- **Stale-closure fix**: Added `rightPanelWidthRef` so the drag-resize handler (closed over `[]`) always reads the latest right-panel width when computing Chat/Scratch split limits
+- **CSS**: Added `edit-ring-pulse` keyframe animation for the layout-edit-mode panel highlight
 
 ## 2026-03-25 - GitHub Copilot
 - **Phase 3.1 — Welcome Modal**: Implemented one-time splash screen (`WelcomeModal.tsx`) that explains Zero Persistence and Consultant-Only core principles; shown once on first load (tracked via `localStorage.astra_welcome_seen`); provides "Take a quick tour" or "Skip for now" actions
