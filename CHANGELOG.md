@@ -35,3 +35,6 @@
 ## 2026-03-25 - Codex
 - Replaced the in-app header brand asset to use `astra-log-new-logo.svg`.
 - Verified the app builds successfully with the updated logo import.
+
+## 2026-03-25 - Codex
+- Increased the in-app header logo display size to improve visibility of `astra-log-new-logo.svg`.
