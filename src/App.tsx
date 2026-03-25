@@ -12,7 +12,7 @@ import { SettingsModal, Settings } from './components/SettingsModal';
 import { ScratchPad } from './components/ScratchPad';
 import { ContainmentScanModal } from './components/ContainmentScanModal';
 import { PermissionDialog } from './components/PermissionDialog';
-import AstraLogLogo from '../Astra-log-logo.svg';
+import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
@@ -754,7 +754,7 @@ export default function App() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
-          <img src={AstraLogLogo} alt="Astra/log logo" className="h-8 w-auto" />
+          <img src={AstraLogLogo} alt="Astra/log logo" className="h-12 w-auto" />
         </div>
         
         <div className="flex items-center gap-3">
