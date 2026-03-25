@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-03-25 - GitHub Copilot
+- Rebranded app from "NOVA/sandbox" to "Astra/log"
+- Updated page title in `index.html`
+- Updated in-app header in `src/App.tsx`
+- Updated `src-tauri/tauri.conf.json` productName and bundle identifier
+- Updated `src-tauri/capabilities/default.json` description
+- Updated `src-tauri/Cargo.toml` package name and description
+- Updated `metadata.json` name field
+- Updated `README.md` all NOVA/sandbox references
+
 ## 2026-03-24 - ChatGPT
 - Created initial AI development instruction set
 - Added repo-wide guidance for reading coreIdentity files and productRoadmap first
