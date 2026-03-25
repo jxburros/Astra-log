@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-03-25 - GitHub Copilot
+- Updated `server.ts` to read the `PORT` environment variable (defaults to 3000) instead of hardcoding port 3000
+- Added `findAvailablePort` helper: if the preferred port is busy the server automatically falls back to any free port assigned by the OS
+- Updated `.env.example` to document the new `PORT` variable
+- Updated `README.md` to document custom-port usage and the auto-fallback behavior
+
 ## 2026-03-25 - Codex
 - Updated the app header to use the repository logo asset `Astra-log-logo.svg` as the in-app brand mark.
 - Removed the previous sparkle icon + text lockup in favor of the new logo image in `src/App.tsx`.
