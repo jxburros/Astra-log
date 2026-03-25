@@ -13,10 +13,11 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Permission System** — AI-suggested terminal commands are presented in a dedicated confirmation dialog (not a browser `window.confirm`) showing the exact command in a code block before it is allowed to execute
 - **Sandboxed Preview** — the preview iframe is hardened with `sandbox` restrictions that block top-navigation and other privileged operations, isolating the running app from the main workspace UI
 - **Live preview** — responsive in-browser preview with mobile, tablet, and desktop viewport modes and a navigable URL bar
-- **Layout presets** — three switchable workspace layouts via the header Layout Switcher:
-  - **Standard** — Terminal · Preview · Chat + Scratch Pad (right panel); all panels resizable by drag; Chat and Scratch Pad sit side-by-side within the right panel and expand to fill it when the other is collapsed
+- **Layout presets** — four switchable workspace layouts via the header Layout Switcher:
+  - **Standard** — Terminal · Preview · Chat + Scratch Pad stacked vertically in the right panel; drag the horizontal divider to resize the Chat/Scratch split; swap their order in Layout Edit Mode
   - **Architect** — Preview + Chat side-by-side on top, full-width Terminal bottom row with vertical drag-to-resize
   - **Zen Focus** — Scratch Pad (left) · Preview (right) only; distraction-free review mode
+  - **Custom** — freely arrange all four panels (Terminal, Preview, Chat, Scratch Pad) across resizable columns and rows; enter Layout Edit Mode to move panels between columns or rows and hide/show individual panels; drag column and row dividers to resize; a "Reset Layout" button restores the default configuration
 - **Layout Edit Mode** — click the ✥ (Move) icon in the header to enter edit mode; panels gain a violet highlight and arrow buttons appear to move the Terminal left/right and swap Chat/Scratch Pad order within the right panel; persisted in sessionStorage
 - **Responsive / Mobile layout** — on viewports below 900 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
 - **Interactive terminal** — full xterm.js shell backed by the WebContainer
