@@ -3,11 +3,15 @@ import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
 import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
+import { scanPackageJson } from './lib/containmentScan';
+import type { ScanResult } from './lib/containmentScan';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
 import type { TroubleshootRequest } from './components/ChatPanel';
 import { SettingsModal, Settings } from './components/SettingsModal';
 import { ScratchPad } from './components/ScratchPad';
+import { ContainmentScanModal } from './components/ContainmentScanModal';
+import { PermissionDialog } from './components/PermissionDialog';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
@@ -83,6 +87,15 @@ export default function App() {
   const [destroyFadeOut, setDestroyFadeOut] = useState(false);
   /** Incremented to signal the ScratchPad to wipe its notes. */
   const [scratchKey, setScratchKey] = useState(0);
+  // ── Phase 4: Security & Trust Layer ───────────────────────────────────────
+  /** Active containment scan result waiting for user decision. */
+  const [scanModalResult, setScanModalResult] = useState<ScanResult | null>(null);
+  /** Resolve callback for the containment scan promise. */
+  const scanResolveRef = useRef<((proceed: boolean) => void) | null>(null);
+  /** Command waiting for user permission before running in terminal. */
+  const [pendingCommand, setPendingCommand] = useState<string | null>(null);
+  /** Resolve callback for the permission dialog promise. */
+  const permissionResolveRef = useRef<((proceed: boolean) => void) | null>(null);
   // Keep a ref so async boot callbacks always read the latest settings
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -177,6 +190,34 @@ export default function App() {
   const handleSaveSettings = (newSettings: Settings) => {
     setSettings(newSettings);
     localStorage.setItem('ai_settings', JSON.stringify(newSettings));
+  };
+
+  // ── Phase 4.1: Containment scan helpers ───────────────────────────────────
+  /** Shows the containment scan modal and resolves when the user decides. */
+  const showContainmentScan = (result: ScanResult): Promise<boolean> =>
+    new Promise<boolean>(resolve => {
+      scanResolveRef.current = resolve;
+      setScanModalResult(result);
+    });
+
+  const handleScanDecision = (proceed: boolean) => {
+    setScanModalResult(null);
+    scanResolveRef.current?.(proceed);
+    scanResolveRef.current = null;
+  };
+
+  // ── Phase 4.2: Permission dialog helpers ──────────────────────────────────
+  /** Shows the permission dialog for a terminal command and resolves when the user decides. */
+  const requestPermission = (command: string): Promise<boolean> =>
+    new Promise<boolean>(resolve => {
+      permissionResolveRef.current = resolve;
+      setPendingCommand(command);
+    });
+
+  const handlePermissionDecision = (proceed: boolean) => {
+    setPendingCommand(null);
+    permissionResolveRef.current?.(proceed);
+    permissionResolveRef.current = null;
   };
 
   const handleTerminalReady = useCallback((term: Terminal) => {
@@ -548,6 +589,23 @@ export default function App() {
       const writer = shellProcess.input.getWriter();
       shellWriterRef.current = writer;
 
+      // ── Phase 4.1: Containment scan ─────────────────────────────────────
+      if (packageJson) {
+        const scanResult = scanPackageJson(packageJson);
+        if (scanResult.level !== 'safe') {
+          writeToTerminal(`\x1b[33m[Security]\x1b[0m Containment scan: ${scanResult.level} — awaiting your decision...\r\n`);
+        }
+        const proceed = await showContainmentScan(scanResult);
+        if (!proceed || !isCurrentSession()) {
+          setStatus('idle');
+          writeToTerminal('\x1b[33m[Security]\x1b[0m Install cancelled by user.\r\n');
+          return;
+        }
+        if (scanResult.level !== 'safe') {
+          writeToTerminal(`\x1b[33m[Security]\x1b[0m Proceeding with install after user confirmation.\r\n`);
+        }
+      }
+
       // Install dependencies via a dedicated process so we can await completion
       setStatus('installing');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Installing dependencies...\r\n`);
@@ -591,14 +649,15 @@ export default function App() {
     await processZipFile(file);
   };
 
-  const handleRunDiagnosticCommand = (command: string) => {
+  const handleRunDiagnosticCommand = async (command: string) => {
     const trimmed = command.trim();
     if (!trimmed) return;
+    // Shell not ready — write a notice to the terminal if possible, otherwise silently skip
     if (!shellWriterRef.current) {
-      window.alert('Terminal shell is not ready yet. Start a project first.');
+      writeToTerminal('\r\n\x1b[33m[System]\x1b[0m Terminal shell is not ready yet. Start a project first.\r\n');
       return;
     }
-    const confirmed = window.confirm(`Run this command in the terminal?\n\n${trimmed}`);
+    const confirmed = await requestPermission(trimmed);
     if (!confirmed) return;
     shellWriterRef.current.write(`${trimmed}\n`);
   };
@@ -672,6 +731,24 @@ export default function App() {
         settings={settings}
         onSave={handleSaveSettings}
       />
+
+      {/* ── Phase 4.1: Containment Scan modal ──────────────────────────────── */}
+      {scanModalResult && (
+        <ContainmentScanModal
+          result={scanModalResult}
+          onProceed={() => handleScanDecision(true)}
+          onCancel={() => handleScanDecision(false)}
+        />
+      )}
+
+      {/* ── Phase 4.2: Permission dialog ────────────────────────────────────── */}
+      {pendingCommand && (
+        <PermissionDialog
+          command={pendingCommand}
+          onConfirm={() => handlePermissionDecision(true)}
+          onCancel={() => handlePermissionDecision(false)}
+        />
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
@@ -881,6 +958,7 @@ export default function App() {
                     className="w-full h-full border-none"
                     title="Preview"
                     allow="cross-origin-isolated"
+                    sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals"
                   />
                 </div>
               </div>
