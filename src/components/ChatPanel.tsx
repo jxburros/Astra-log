@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot, ChevronRight } from 'lucide-react';
+import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2 } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 interface Message {
@@ -23,17 +23,39 @@ interface Props {
   resetKey?: number;
   /** Called when the user clicks the collapse button in the panel header. */
   onCollapse?: () => void;
+  /** Executes a suggested terminal command after user confirmation in parent. */
+  onRunDiagnosticCommand?: (command: string) => void;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant helping a developer brainstorm and plan features for a web application they are previewing.
-When the user shares ideas — long or short — acknowledge them with genuine curiosity and a bit of encouragement.
-Ask clarifying questions only when they're truly needed to understand the full picture.
+Prioritize explanation and clear structure over lengthy prose.
+Avoid unsolicited solutions unless the user directly asks for implementation steps.
+If the user input is short or fragmentary, default to passive mode: brief acknowledgment, one lightweight clarifying option, and no heavy solution dump.
 Hold off on writing code for now; the goal is to help them think things through and capture their ideas.
-When they're ready for a plan, put together a clear, comprehensive, step-by-step implementation guide based on everything discussed — covering architecture changes, required components, and logical sequencing.`;
+When they're ready for a plan, put together a clear, comprehensive, step-by-step implementation guide based on everything discussed — covering architecture changes, required components, and logical sequencing.
+When suggesting terminal diagnostics, format each command in its own fenced \`\`\`bash block.`;
 
 const INITIAL_MESSAGE: Message = { role: 'assistant', content: "Hey there! Ready to build something great? Share your ideas — big or small — and let's start mapping out what your app could become. Whenever you're ready, we can turn it all into a solid implementation plan." };
 
-export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse }: Props) {
+const ACTION_CHIPS = ['Expand', 'Clarify', "What's missing"] as const;
+const SHORT_INPUT_THRESHOLD = 40;
+
+const getDiagnosticCommands = (content: string): string[] => {
+  const commands = new Set<string>();
+  const blockRegex = /```(?:bash|sh|zsh)?\n([\s\S]*?)```/gi;
+  let match: RegExpExecArray | null;
+  while ((match = blockRegex.exec(content))) {
+    match[1]
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .filter(line => !line.startsWith('#'))
+      .forEach(line => commands.add(line));
+  }
+  return Array.from(commands).slice(0, 4);
+};
+
+export function ChatPanel({ settings, getProjectContext, troubleshootRequest, onTroubleshootHandled, resetKey, onCollapse, onRunDiagnosticCommand }: Props) {
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -93,7 +115,11 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
 
     try {
       const context = await getProjectContext();
-      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
+      const isPassiveMode = userMsg.length > 0 && userMsg.length <= SHORT_INPUT_THRESHOLD;
+      const behaviorLayer = isPassiveMode
+        ? 'Passive mode is active for this turn. Keep response to 2-4 concise sentences. Prefer acknowledgment + structure. Do not provide unsolicited implementation solutions.'
+        : 'Standard mode: keep response focused, structured, and reasonably concise.';
+      const dynamicSystemPrompt = `${SYSTEM_PROMPT}\n\n--- BEHAVIOR LAYER ---\n${behaviorLayer}\n\n--- CURRENT PROJECT CONTEXT ---\n${context}`;
 
       let reply = '';
       
@@ -192,6 +218,42 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
                 : 'bg-white/5 text-zinc-200 rounded-2xl rounded-bl-sm border border-white/10 backdrop-blur-md'
             }`}>
               <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
+              {msg.role === 'assistant' && i === messages.length - 1 && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {ACTION_CHIPS.map(chip => (
+                      <button
+                        key={chip}
+                        onClick={() => handleSend(chip)}
+                        disabled={isTyping}
+                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50 flex items-center gap-1"
+                        title={`Ask AI to ${chip.toLowerCase()}`}
+                      >
+                        <Wand2 className="w-3 h-3" />
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                  {onRunDiagnosticCommand && getDiagnosticCommands(msg.content).length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wider text-zinc-500">Suggested diagnostics</p>
+                      <div className="flex flex-col gap-1.5">
+                        {getDiagnosticCommands(msg.content).map(command => (
+                          <button
+                            key={command}
+                            onClick={() => onRunDiagnosticCommand(command)}
+                            className="text-left px-2.5 py-1.5 rounded-md bg-black/35 border border-white/10 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-colors text-[11px] text-zinc-300 hover:text-emerald-200 flex items-center gap-2"
+                            title="Run this command in terminal (confirmation required)"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5 shrink-0" />
+                            <code className="truncate">{command}</code>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ))}
