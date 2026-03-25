@@ -1,6 +1,6 @@
 # Changelog
 
-## 2025-07-14 - GitHub Copilot
+## 2026-03-25 - GitHub Copilot
 - **Phase 1.1 — Multi-Configuration Layout Engine**: Added three switchable layout presets (`standard`, `architect`, `zen-focus`) with a header Layout Switcher (LayoutDashboard / PanelBottom / Maximize2 icons)
 - **Architect layout**: CSS-grid workspace — Preview + Chat side-by-side on top, full-width Terminal row on the bottom with vertical drag-to-resize handle
 - **Zen Focus layout**: Scratch Pad (left) + Preview (right) only; no terminal or chat noise

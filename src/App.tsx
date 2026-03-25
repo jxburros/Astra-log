@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2 } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2 } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -181,39 +181,11 @@ export default function App() {
         document.body.classList.remove('dragging-vertical');
       }
     };
-    const onTouchMove = (e: TouchEvent) => {
-      const { panel, startX, startY, startWidth } = dragRef.current;
-      if (!panel) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const dx = touch.clientX - startX;
-      const dy = touch.clientY - startY;
-      if (panel === 'terminal') {
-        setTerminalWidth(Math.max(180, Math.min(520, startWidth + dx)));
-      } else if (panel === 'chat') {
-        setChatWidth(Math.max(240, Math.min(600, startWidth - dx)));
-      } else if (panel === 'scratch') {
-        setScratchWidth(Math.max(180, Math.min(520, startWidth - dx)));
-      } else if (panel === 'terminal-height') {
-        setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
-      }
-    };
-    const onTouchEnd = () => {
-      if (dragRef.current.panel) {
-        dragRef.current.panel = null;
-        document.body.classList.remove('dragging-panel');
-        document.body.classList.remove('dragging-vertical');
-      }
-    };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('touchmove', onTouchMove, { passive: false });
-    document.addEventListener('touchend', onTouchEnd);
     return () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
 
@@ -815,6 +787,35 @@ export default function App() {
     dragRef.current = { panel, startX: touch.clientX, startY: touch.clientY, startWidth: currentSize };
     document.body.classList.add('dragging-panel');
     if (panel === 'terminal-height') document.body.classList.add('dragging-vertical');
+
+    // Attach touch listeners only for the duration of this drag so that
+    // a passive listener never blocks browser scroll optimization when idle.
+    const onMove = (ev: TouchEvent) => {
+      const { panel: p, startX, startY, startWidth } = dragRef.current;
+      if (!p) return;
+      ev.preventDefault();
+      const t = ev.touches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (p === 'terminal') {
+        setTerminalWidth(Math.max(180, Math.min(520, startWidth + dx)));
+      } else if (p === 'chat') {
+        setChatWidth(Math.max(240, Math.min(600, startWidth - dx)));
+      } else if (p === 'scratch') {
+        setScratchWidth(Math.max(180, Math.min(520, startWidth - dx)));
+      } else if (p === 'terminal-height') {
+        setTerminalHeight(Math.max(120, Math.min(500, startWidth - dy)));
+      }
+    };
+    const onEnd = () => {
+      dragRef.current.panel = null;
+      document.body.classList.remove('dragging-panel');
+      document.body.classList.remove('dragging-vertical');
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
   };
 
   // Collapsed tab shared style
@@ -1348,7 +1349,7 @@ export default function App() {
                 <TerminalIcon className="w-3.5 h-3.5" />Terminal
               </div>
               <button onClick={() => setTerminalCollapsed(c => !c)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title={terminalCollapsed ? 'Expand terminal' : 'Collapse terminal'}>
-                {terminalCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronLeft className="rotate-90 w-3.5 h-3.5" />}
+                {terminalCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
             </div>
             {!terminalCollapsed && (
