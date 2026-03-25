@@ -22,6 +22,8 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Offline Scratch Pad** — fully local, session-only thought buffer that is visually distinct from chat, includes quick clear, keyboard-first access (`Ctrl/Cmd + .` to toggle, `Ctrl/Cmd + Shift + K` to focus), optional timestamps/sections, and quick-bullet mode
 - **AI behavior layer + action chips** — passive handling for short inputs, concise structured responses, and one-click follow-up chips (`Expand`, `Clarify`, `What’s missing`)
 - **Diagnostic command runner** — AI can suggest terminal commands in chat; users can click to run with explicit confirmation (never auto-executes)
+- **Artifact Export** — after generating an implementation plan, click "Export Artifact" in the chat to open the export modal; download as Markdown (`.md`) or PDF (via browser print dialog); exported content is organised into UX, Logic, and Architecture sections extracted from AI planning output
+- **Evolution Snapshots** — take snapshots of the current plan at any point during a session; view all snapshots in the Snapshots tab; compare any two snapshots side-by-side in the Compare tab; all snapshots are session-only and cleared on "New Project"
 
 ## Tech Stack
 

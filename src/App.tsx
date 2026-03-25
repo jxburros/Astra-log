@@ -6,13 +6,17 @@ import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon,
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
+import { parseArtifactSections } from './lib/exportUtils';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
 import type { TroubleshootRequest } from './components/ChatPanel';
+import type { Message } from './components/ChatPanel';
 import { SettingsModal, Settings } from './components/SettingsModal';
 import { ScratchPad } from './components/ScratchPad';
 import { ContainmentScanModal } from './components/ContainmentScanModal';
 import { PermissionDialog } from './components/PermissionDialog';
+import { ExportModal } from './components/ExportModal';
+import type { PlanSnapshot } from './components/ExportModal';
 import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
@@ -98,6 +102,15 @@ export default function App() {
   const [pendingCommand, setPendingCommand] = useState<string | null>(null);
   /** Resolve callback for the permission dialog promise. */
   const permissionResolveRef = useRef<((proceed: boolean) => void) | null>(null);
+  // ── Phase 5: Artifact System ───────────────────────────────────────────────
+  /** Whether the export/snapshot modal is open. */
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  /** Parsed artifact passed to the export modal (derived from current chat messages). */
+  const [exportArtifact, setExportArtifact] = useState(() =>
+    parseArtifactSections([])
+  );
+  /** Session-only plan snapshots; cleared when a new project session starts. */
+  const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
   // Keep a ref so async boot callbacks always read the latest settings
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
@@ -222,6 +235,25 @@ export default function App() {
     permissionResolveRef.current = null;
   };
 
+  // ── Phase 5.1: Export artifact ─────────────────────────────────────────────
+  const handleExportArtifact = (messages: Message[]) => {
+    setExportArtifact(parseArtifactSections(messages));
+    setIsExportOpen(true);
+  };
+
+  // ── Phase 5.2: Evolution snapshots ────────────────────────────────────────
+  const handleTakeSnapshot = () => {
+    setPlanSnapshots(prev => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        label: `Snapshot ${prev.length + 1}`,
+        artifact: exportArtifact,
+      },
+    ]);
+  };
+
   const handleTerminalReady = useCallback((term: Terminal) => {
     terminalRef.current = term;
     term.writeln('\x1b[34m[System]\x1b[0m Terminal ready — drop in a zip to kick things off.');
@@ -304,6 +336,10 @@ export default function App() {
     setScratchKey(k => k + 1);
     // Exit focus mode on reset
     setFocusMode(false);
+    // Phase 5: clear evolution snapshots and close export modal on session reset
+    setPlanSnapshots([]);
+    setIsExportOpen(false);
+    setExportArtifact(parseArtifactSections([]));
 
     // Fade out the overlay
     setDestroyFadeOut(true);
@@ -779,6 +815,15 @@ export default function App() {
         />
       )}
 
+      {/* ── Phase 5: Artifact Export modal ──────────────────────────────────── */}
+      <ExportModal
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        artifact={exportArtifact}
+        snapshots={planSnapshots}
+        onTakeSnapshot={handleTakeSnapshot}
+      />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-black/30 backdrop-blur-xl shrink-0 relative z-10">
         <div className="flex items-center gap-3">
@@ -1042,6 +1087,7 @@ export default function App() {
               onTroubleshootHandled={() => setTroubleshootRequest(null)}
               onCollapse={() => setChatCollapsed(true)}
               onRunDiagnosticCommand={handleRunDiagnosticCommand}
+              onExportArtifact={handleExportArtifact}
             />
           </div>
         ) : !focusMode ? (
