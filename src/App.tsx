@@ -113,6 +113,8 @@ export default function App() {
   const [activeDrawerTab, setActiveDrawerTab] = useState<'terminal' | 'chat' | 'scratch' | null>(null);
   /** Local-only scratch pad content (never sent to AI). */
   const [scratchPadContent, setScratchPadContent] = useState('');
+  /** Scratch Pad notes staged by the user to be prepended to the next AI message. */
+  const [stagedNotes, setStagedNotes] = useState<string>('');
   // ── Phase 4: Security & Trust Layer ───────────────────────────────────────
   /** Active containment scan result waiting for user decision. */
   const [scanModalResult, setScanModalResult] = useState<ScanResult | null>(null);
@@ -271,6 +273,10 @@ export default function App() {
     permissionResolveRef.current = null;
   };
 
+  // ── Phase 2.2: Draft-to-Chat (staged notes) ───────────────────────────────
+  const handleStageNotes = () => setStagedNotes(scratchPadContent);
+  const handleClearStagedNotes = () => setStagedNotes('');
+
   // ── Phase 5.1: Export artifact ─────────────────────────────────────────────
   const handleExportArtifact = (messages: Message[]) => {
     setExportSourceMessages(messages);
@@ -378,6 +384,7 @@ export default function App() {
     // Clear the scratch pad
     setScratchKey(k => k + 1);
     setScratchPadContent('');
+    setStagedNotes('');
     // Exit focus mode on reset
     setFocusMode(false);
     // Phase 5: clear evolution snapshots and close export modal on session reset
@@ -1145,7 +1152,7 @@ export default function App() {
                 </>
               )}
               {activeDrawerTab === 'chat' && (
-                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setActiveDrawerTab(null)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} />
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setActiveDrawerTab(null)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} />
               )}
               {activeDrawerTab === 'scratch' && (
                 <>
@@ -1155,7 +1162,7 @@ export default function App() {
                     </div>
                     <button onClick={() => setActiveDrawerTab(null)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"><ChevronUp className="w-3.5 h-3.5" /></button>
                   </div>
-                  <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+                  <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
                 </>
               )}
             </div>
@@ -1294,7 +1301,7 @@ export default function App() {
             {/* Chat panel */}
             {!chatCollapsed ? (
               <div style={{ width: chatWidth }} className="flex flex-col shrink-0 overflow-hidden">
-                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setChatCollapsed(true)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} />
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setChatCollapsed(true)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} />
               </div>
             ) : (
               <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
@@ -1326,7 +1333,7 @@ export default function App() {
                     <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>{scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}</button>
                   </div>
                 </div>
-                <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+                <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
               </div>
             ) : (
               <div className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}>
@@ -1378,7 +1385,7 @@ export default function App() {
                 <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>{scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}</button>
               </div>
             </div>
-            <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} />
+            <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
           </div>
 
           {/* Drag divider */}
@@ -1676,6 +1683,8 @@ export default function App() {
               onCollapse={() => setChatCollapsed(true)}
               onRunDiagnosticCommand={handleRunDiagnosticCommand}
               onExportArtifact={handleExportArtifact}
+              stagedNotes={stagedNotes}
+              onClearStagedNotes={handleClearStagedNotes}
             />
           </div>
         ) : !focusMode ? (
@@ -1757,6 +1766,7 @@ export default function App() {
                 resetKey={scratchKey}
                 value={scratchPadContent}
                 onChange={setScratchPadContent}
+                onStageNotes={handleStageNotes}
               />
             </motion.div>
           ) : (

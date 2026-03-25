@@ -26,6 +26,9 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
   - Local / Ollama (configurable endpoint)
 - **Offline Scratch Pad** — fully local, session-only thought buffer that is visually distinct from chat, includes quick clear, keyboard-first access (`Ctrl/Cmd + .` to toggle, `Ctrl/Cmd + Shift + K` to focus), optional timestamps/sections, and quick-bullet mode
 - **AI behavior layer + action chips** — passive handling for short inputs, concise structured responses, and one-click follow-up chips (`Expand`, `Clarify`, `What’s missing`)
+- **Concise Mode** — toggle ⚡ in the Chat panel header to force bullet-point, maximum-5-item AI responses with no preamble; preference persists across page reloads
+- **Suggested Responses** — after each AI message, context-aware quick-tap buttons appear: `Yes` / `No` when the AI asks a question, and `Proceed` / `Explain further` as universal follow-ups
+- **Draft-to-Chat (Stage Notes for AI)** — click “Stage for AI” (↗) in the Scratch Pad toolbar to prepend your private notes to the next chat message; a banner in the Chat input area confirms staging and allows dismissal before sending
 - **Diagnostic command runner** — AI can suggest terminal commands in chat; users can click to run with explicit confirmation (never auto-executes)
 - **Artifact Export (multi-style)** — open "Export Artifact" to choose export style: **Simple recap of notes sent to AI**, **Implementation plan**, or **Structured fix list (no plan)**; each style can be downloaded as Markdown (`.md`), PDF (via browser print), plain text (`.txt`), HTML (`.html`), or JSON (`.json`)
 - **Optional Scratch Pad Addendum** — export flow includes a user-controlled toggle to append private Scratch Pad notes at the bottom of the document; Scratch Pad content remains local and is never sent to AI
