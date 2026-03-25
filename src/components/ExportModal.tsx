@@ -51,6 +51,54 @@ const STYLE_FILENAME: Record<ExportStyle, string> = {
   'fix-list': 'fix-list',
 };
 
+// ── Minimal line-based diff ────────────────────────────────────────────────
+type DiffLine = { type: 'same' | 'added' | 'removed'; text: string };
+
+/**
+ * Computes a simple line-level diff between `oldText` and `newText`.
+ * Uses the longest-common-subsequence approach limited to a practical O(n*m) budget.
+ */
+function computeDiff(oldText: string, newText: string): DiffLine[] {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  const m = oldLines.length;
+  const n = newLines.length;
+
+  // LCS DP table
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (oldLines[i - 1] === newLines[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+
+  // Backtrack to produce diff
+  const result: DiffLine[] = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
+      result.unshift({ type: 'same', text: oldLines[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      result.unshift({ type: 'added', text: newLines[j - 1] });
+      j--;
+    } else {
+      result.unshift({ type: 'removed', text: oldLines[i - 1] });
+      i--;
+    }
+  }
+  return result;
+}
+
+function artifactToText(artifact: ParsedArtifact): string {
+  return artifact.sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n') || '(empty)';
+}
+
 export function ExportModal({
   isOpen,
   onClose,
@@ -301,7 +349,7 @@ export function ExportModal({
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5 block">Snapshot A</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5 block">Snapshot A (older)</label>
                   <select value={compareA} onChange={e => setCompareA(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/40">
                     <option value="">Select…</option>
                     {snapshots.map(s => (
@@ -310,7 +358,7 @@ export function ExportModal({
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5 block">Snapshot B</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5 block">Snapshot B (newer)</label>
                   <select value={compareB} onChange={e => setCompareB(e.target.value)} className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500/40">
                     <option value="">Select…</option>
                     {snapshots.map(s => (
@@ -320,29 +368,51 @@ export function ExportModal({
                 </div>
               </div>
 
-              {snapshotA && snapshotB && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">{snapshotA.label}</div>
-                    <div className="bg-white/3 border border-white/8 rounded-xl p-3 max-h-72 overflow-y-auto">
-                      <pre className="text-xs text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed">
-                        {snapshotA.artifact.sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n') || '(empty)'}
-                      </pre>
+              {snapshotA && snapshotB && (() => {
+                const textA = artifactToText(snapshotA.artifact);
+                const textB = artifactToText(snapshotB.artifact);
+                const diffLines = computeDiff(textA, textB);
+                const added = diffLines.filter(l => l.type === 'added').length;
+                const removed = diffLines.filter(l => l.type === 'removed').length;
+                return (
+                  <>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="text-zinc-500">Diff:</span>
+                      <span className="text-emerald-400">+{added} line{added !== 1 ? 's' : ''}</span>
+                      <span className="text-rose-400">−{removed} line{removed !== 1 ? 's' : ''}</span>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">{snapshotB.label}</div>
-                    <div className="bg-white/3 border border-white/8 rounded-xl p-3 max-h-72 overflow-y-auto">
-                      <pre className="text-xs text-zinc-400 whitespace-pre-wrap font-mono leading-relaxed">
-                        {snapshotB.artifact.sections.map(s => `## ${s.title}\n\n${s.content}`).join('\n\n---\n\n') || '(empty)'}
-                      </pre>
+                    <div className="bg-black/50 border border-white/8 rounded-xl overflow-y-auto max-h-80 font-mono text-xs leading-5">
+                      {diffLines.map((line, idx) => (
+                        <div
+                          key={idx}
+                          aria-label={
+                            line.type === 'added'
+                              ? `Added: ${line.text}`
+                              : line.type === 'removed'
+                              ? `Removed: ${line.text}`
+                              : undefined
+                          }
+                          className={
+                            line.type === 'added'
+                              ? 'bg-emerald-500/12 border-l-2 border-emerald-500/60 pl-2 text-emerald-300 whitespace-pre-wrap'
+                              : line.type === 'removed'
+                              ? 'bg-rose-500/12 border-l-2 border-rose-500/60 pl-2 text-rose-300 whitespace-pre-wrap line-through decoration-rose-500/50'
+                              : 'pl-3 text-zinc-500 whitespace-pre-wrap'
+                          }
+                        >
+                          <span className="select-none mr-2 opacity-40 text-[10px]">
+                            {line.type === 'added' ? '+' : line.type === 'removed' ? '−' : ' '}
+                          </span>
+                          {line.text || '\u00A0'}
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                </div>
-              )}
+                  </>
+                );
+              })()}
 
               {(!snapshotA || !snapshotB) && (
-                <p className="text-zinc-600 text-xs text-center py-4">Select two snapshots above to compare them side by side.</p>
+                <p className="text-zinc-600 text-xs text-center py-4">Select two snapshots above to compare them with visual diff highlighting.</p>
               )}
             </div>
           )}

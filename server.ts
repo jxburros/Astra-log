@@ -2,14 +2,16 @@ import express from "express";
 import net from "net";
 import path from "path";
 
+// 2026 Model Registry — current standards with deprecated models removed.
 const FALLBACK_MODELS: Record<string, { id: string; name: string }[]> = {
   openai: [
+    { id: 'gpt-4.1', name: 'GPT-4.1' },
+    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
     { id: 'gpt-4o', name: 'GPT-4o' },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
-    { id: 'o1', name: 'o1' },
-    { id: 'o1-mini', name: 'o1 Mini' },
+    { id: 'o3', name: 'o3' },
     { id: 'o3-mini', name: 'o3 Mini' },
+    { id: 'o4-mini', name: 'o4 Mini' },
   ],
   anthropic: [
     { id: 'claude-opus-4-5', name: 'Claude Opus 4.5' },
@@ -17,14 +19,12 @@ const FALLBACK_MODELS: Record<string, { id: string; name: string }[]> = {
     { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
     { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
     { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
+    { id: 'gemini-2.0-pro-exp', name: 'Gemini 2.0 Pro (Exp)' },
   ],
 };
 
@@ -70,7 +70,25 @@ async function startServer() {
   });
 
   app.get("/api/models", async (req, res) => {
-    const { provider, apiKey } = req.query as { provider: string; apiKey?: string };
+    const { provider, apiKey, localUrl } = req.query as { provider: string; apiKey?: string; localUrl?: string };
+
+    // Local/Ollama: fetch live tags from the running instance
+    if (provider === 'local') {
+      const baseUrl = (localUrl || 'http://localhost:11434').replace(/\/+$/, '');
+      try {
+        const response = await fetch(`${baseUrl}/api/tags`);
+        if (!response.ok) throw new Error(`Ollama responded with ${response.status}`);
+        const data = await response.json() as { models?: { name: string; model: string }[] };
+        const models = (data.models || []).map((m) => ({
+          id: m.model || m.name,
+          name: m.name,
+        }));
+        return res.json({ models, fallback: false });
+      } catch {
+        // Ollama not reachable — return an empty list so the UI can show guidance
+        return res.json({ models: [], fallback: true });
+      }
+    }
 
     if (!provider || !FALLBACK_MODELS[provider]) {
       return res.status(400).json({ error: "Invalid provider" });

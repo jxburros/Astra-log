@@ -1,6 +1,16 @@
 # Changelog
 
 ## 2026-03-25 - GitHub Copilot
+### 1.0 Final Push — All five roadmap items implemented
+
+- **AI App Reviewer**: Added "Review App (A11y & UX)" button (🔍 `ScanEye` icon) to the Chat panel bottom bar. Clicking it sends a structured AI review prompt requesting findings on Accessibility (ARIA, alt text, semantic HTML, keyboard navigation), UI/UX critique, and Color Contrast (WCAG AA). Visible in all layout variants whenever a chat session has messages.
+- **BYOK – Local Model Discovery**: Updated `/api/models` endpoint in `server.ts` to handle `provider=local`. When Ollama is selected, the server proxies a request to `${localUrl}/api/tags` to fetch live model tags. Model dropdown in Settings now works for Ollama just like cloud providers. SettingsModal gains a debounced `handleLocalUrlChange` that triggers discovery on URL change.
+- **BYOK – 2026 Model Registry**: Replaced deprecated model lists in `FALLBACK_MODELS`. Removed: Gemini 1.5 Pro/Flash, Claude 3 Opus, GPT-4 Turbo, o1/o1-mini. Added: GPT-4.1, GPT-4.1 Mini, o4-Mini, Gemini 2.0 Pro (Exp). Reordered Gemini/OpenAI lists to surface most-capable models first.
+- **Custom Persona Settings**: Added optional `customInstructions` field to the `Settings` interface. SettingsModal displays a textarea that appends custom text to the AI's system prompt under a `--- CUSTOM INSTRUCTIONS ---` section every session.
+- **Visual Plan Diffs**: Implemented a pure LCS-based line diff (`computeDiff`) in `ExportModal.tsx`. The Compare view now renders a unified diff with green (`bg-emerald-500/12`) highlight for additions, red (`bg-rose-500/12`) with strikethrough for deletions, and a summary of `+N / −N` lines changed. The old side-by-side plain text view is replaced by the new highlighted diff view.
+- **Session Freshness Indicator**: Added `sessionStartTime` and `sessionElapsedSecs` state in `App.tsx`. A 1-second interval ticks whenever a session is active (status ≠ idle). The elapsed time is displayed as a `HH:MM:SS` monospace label next to the "New Project" button. Timer resets on "New Project".
+
+## 2026-03-25 - GitHub Copilot
 - **Responsive Layout**: Lowered mobile/drawer layout breakpoint from 1024 px to 900 px so mid-size laptops get the full-height Preview + collapsible bottom-drawer experience
 - **Chat + Scratch Pad side-by-side**: In the Standard layout, Chat and Scratch Pad now live inside a single combined right panel; both panels sit horizontally next to each other; when one is collapsed the other expands to fill the full right-panel width
 - **Right-panel drag-to-resize**: A new drag divider on the left edge of the combined right panel lets users resize the entire panel; the Preview (flex-1) adjusts to fill the freed space; an internal drag divider between Chat and Scratch Pad resizes them relative to each other within the panel

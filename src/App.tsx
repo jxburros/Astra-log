@@ -155,6 +155,11 @@ export default function App() {
   const [exportSourceMessages, setExportSourceMessages] = useState<Message[]>([]);
   /** Session-only plan snapshots; cleared when a new project session starts. */
   const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
+  // ── 1.0: Session Freshness Indicator ──────────────────────────────────────
+  /** Unix timestamp (ms) when the current session started (i.e. first non-idle status). */
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  /** Elapsed seconds displayed next to the "New Project" button. Updated every second. */
+  const [sessionElapsedSecs, setSessionElapsedSecs] = useState(0);
   // ── Phase 3: Onboarding & Help ─────────────────────────────────────────────
   /** Whether the one-time welcome modal is visible. */
   const [isWelcomeOpen, setIsWelcomeOpen] = useState<boolean>(
@@ -272,6 +277,27 @@ export default function App() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  // ── 1.0: Session Freshness timer ─────────────────────────────────────────
+  // Start the clock when the session first goes non-idle; tick every second.
+  useEffect(() => {
+    if (status !== 'idle' && sessionStartTime === null) {
+      setSessionStartTime(Date.now());
+      setSessionElapsedSecs(0);
+    }
+    if (status === 'idle') {
+      setSessionStartTime(null);
+      setSessionElapsedSecs(0);
+    }
+  }, [status, sessionStartTime]);
+
+  useEffect(() => {
+    if (sessionStartTime === null) return;
+    const id = setInterval(() => {
+      setSessionElapsedSecs(Math.floor((Date.now() - sessionStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sessionStartTime]);
 
   useEffect(() => {
     const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -455,6 +481,9 @@ export default function App() {
     setExportArtifact(buildExportArtifact([], 'implementation-plan'));
     setExportStyle('implementation-plan');
     setExportSourceMessages([]);
+    // 1.0: reset session freshness indicator
+    setSessionStartTime(null);
+    setSessionElapsedSecs(0);
 
     // Fade out the overlay
     setDestroyFadeOut(true);
@@ -1060,14 +1089,24 @@ export default function App() {
           })()}
 
           {status !== 'idle' && (
-            <button
-              onClick={handleStartOver}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 rounded-md cursor-pointer transition-all text-sm font-medium"
-              title="Start a new project"
-            >
-              <FolderOpen className="w-4 h-4" />
-              New Project
-            </button>
+            <div className="flex items-center gap-2">
+              {sessionElapsedSecs > 0 && (
+                <span
+                  className="text-[10px] font-mono text-zinc-600 tabular-nums"
+                  title="Active session duration"
+                >
+                  {String(Math.floor(sessionElapsedSecs / 3600)).padStart(2, '0')}:{String(Math.floor((sessionElapsedSecs % 3600) / 60)).padStart(2, '0')}:{String(sessionElapsedSecs % 60).padStart(2, '0')}
+                </span>
+              )}
+              <button
+                onClick={handleStartOver}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 rounded-md cursor-pointer transition-all text-sm font-medium"
+                title="Start a new project"
+              >
+                <FolderOpen className="w-4 h-4" />
+                New Project
+              </button>
+            </div>
           )}
 
           <div className="w-px h-5 bg-white/10" />
@@ -1255,7 +1294,7 @@ export default function App() {
                 </>
               )}
               {activeDrawerTab === 'chat' && (
-                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setActiveDrawerTab(null)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} />
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setActiveDrawerTab(null)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} onRequestAIReview={() => {}} />
               )}
               {activeDrawerTab === 'scratch' && (
                 <>
@@ -1404,7 +1443,7 @@ export default function App() {
             {/* Chat panel */}
             {!chatCollapsed ? (
               <div style={{ width: chatWidth }} className="flex flex-col shrink-0 overflow-hidden">
-                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setChatCollapsed(true)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} />
+                <ChatPanel resetKey={chatKey} settings={settings} getProjectContext={getProjectContext} troubleshootRequest={troubleshootRequest} onTroubleshootHandled={() => setTroubleshootRequest(null)} onCollapse={() => setChatCollapsed(true)} onRunDiagnosticCommand={handleRunDiagnosticCommand} onExportArtifact={handleExportArtifact} stagedNotes={stagedNotes} onClearStagedNotes={handleClearStagedNotes} onRequestAIReview={() => {}} />
               </div>
             ) : (
               <div className={`${collapsedTab} w-8 border-r py-3 gap-2`}>
@@ -1811,6 +1850,7 @@ export default function App() {
                           onExportArtifact={handleExportArtifact}
                           stagedNotes={stagedNotes}
                           onClearStagedNotes={handleClearStagedNotes}
+                          onRequestAIReview={() => {}}
                         />
                       </div>
                     ) : (
@@ -1971,6 +2011,7 @@ export default function App() {
                           onExportArtifact={handleExportArtifact}
                           stagedNotes={stagedNotes}
                           onClearStagedNotes={handleClearStagedNotes}
+                          onRequestAIReview={() => {}}
                         />
                       </div>
                     ) : (
