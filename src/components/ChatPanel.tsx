@@ -153,6 +153,7 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
           body: JSON.stringify({
             provider: settings.provider,
             apiKey: settings.apiKey,
+            model: settings.model,
             messages: newMessages,
             systemPrompt: dynamicSystemPrompt
           })
