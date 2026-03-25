@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
+import { Send, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
+  quickReplies?: string[];
 }
 
 export interface TroubleshootRequest {
@@ -43,19 +44,45 @@ Avoid unsolicited solutions unless the user directly asks for implementation ste
 If the user input is short or fragmentary, default to passive mode: brief acknowledgment, one lightweight clarifying option, and no heavy solution dump.
 Hold off on writing code for now; the goal is to help them think things through and capture their ideas.
 When they're ready for a plan, put together a clear, comprehensive, step-by-step implementation guide based on everything discussed — covering architecture changes, required components, and logical sequencing.
-When suggesting terminal diagnostics, format each command in its own fenced \`\`\`bash block.`;
+When suggesting terminal diagnostics, format each command in its own fenced \`\`\`bash block.
+If you end your response with a direct question and there are likely short answers, append machine-readable quick replies on a new line using this exact format: <quickReplies>["Yes","No"]</quickReplies>.
+Only include 2-4 short reply options, and only when the response ends with a question.`;
 
-const INITIAL_MESSAGE: Message = { role: 'assistant', content: "Hey there! Ready to build something great? Share your ideas — big or small — and let's start mapping out what your app could become. Whenever you're ready, we can turn it all into a solid implementation plan." };
+const INITIAL_MESSAGE: Message = { role: 'assistant', content: "What do you see in the app?" };
 
 const ACTION_CHIPS = ['Expand', 'Clarify', "What's missing"] as const;
-const BINARY_RESPONSES = ['Yes', 'No'] as const;
-const CONTEXTUAL_RESPONSES = ['Proceed', 'Explain further'] as const;
 const SHORT_INPUT_THRESHOLD = 40;
+const QUICK_REPLIES_TAG_REGEX = /<quickReplies>\s*(\[[\s\S]*?\])\s*<\/quickReplies>/i;
 
 /** Returns true when the last non-empty line of an AI message ends with "?". */
 const endsWithQuestion = (content: string): boolean => {
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
   return lines.length > 0 && lines[lines.length - 1].endsWith('?');
+};
+
+const parseAssistantReply = (rawReply: string): { visibleContent: string; quickReplies: string[] } => {
+  const quickRepliesMatch = rawReply.match(QUICK_REPLIES_TAG_REGEX);
+  const visibleContent = rawReply.replace(QUICK_REPLIES_TAG_REGEX, '').trim();
+
+  if (!quickRepliesMatch) return { visibleContent, quickReplies: [] };
+
+  try {
+    const parsed = JSON.parse(quickRepliesMatch[1]);
+    const quickReplies = Array.isArray(parsed)
+      ? parsed
+          .filter((item): item is string => typeof item === 'string')
+          .map(item => item.trim())
+          .filter(Boolean)
+          .slice(0, 4)
+      : [];
+
+    return {
+      visibleContent,
+      quickReplies: endsWithQuestion(visibleContent) ? quickReplies : []
+    };
+  } catch {
+    return { visibleContent, quickReplies: [] };
+  }
 };
 
 const getDiagnosticCommands = (content: string): string[] => {
@@ -225,17 +252,13 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
         reply = data.reply;
       }
 
-      setMessages([...newMessages, { role: 'assistant', content: reply }]);
+      const parsedReply = parseAssistantReply(reply);
+      setMessages([...newMessages, { role: 'assistant', content: parsedReply.visibleContent, quickReplies: parsedReply.quickReplies }]);
     } catch (err: any) {
       setMessages([...newMessages, { role: 'assistant', content: `Error: ${err.message}` }]);
     } finally {
       setIsTyping(false);
     }
-  };
-
-  const handleGeneratePlan = () => {
-    const planPrompt = "Based on everything we've talked through, can you put together a comprehensive implementation plan? Break it down into clear steps, any architecture changes needed, and the key components to build.";
-    handleSend(planPrompt, true);
   };
 
   const handleReviewApp = () => {
@@ -303,24 +326,12 @@ Format your response with clear headings for each category and bullet points for
                   </div>
                   {/* Suggested responses */}
                   <div className="flex flex-wrap gap-1.5">
-                    {endsWithQuestion(msg.content) && BINARY_RESPONSES.map(resp => (
+                    {endsWithQuestion(msg.content) && (msg.quickReplies || []).map(resp => (
                       <button
                         key={resp}
                         onClick={() => handleSend(resp)}
                         disabled={isTyping}
                         className="px-2.5 py-1 text-[11px] rounded-full border border-indigo-500/25 bg-indigo-500/8 text-indigo-300 hover:text-white hover:bg-indigo-500/20 transition-colors disabled:opacity-50 flex items-center gap-1"
-                        title={`Reply: ${resp}`}
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        {resp}
-                      </button>
-                    ))}
-                    {CONTEXTUAL_RESPONSES.map(resp => (
-                      <button
-                        key={resp}
-                        onClick={() => handleSend(resp)}
-                        disabled={isTyping}
-                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/8 bg-white/3 text-zinc-400 hover:text-zinc-200 hover:bg-white/8 transition-colors disabled:opacity-50 flex items-center gap-1"
                         title={`Reply: ${resp}`}
                       >
                         <MessageSquare className="w-3 h-3" />
@@ -363,36 +374,33 @@ Format your response with clear headings for each category and bullet points for
       </div>
 
       <div className="p-3 border-t border-white/8 bg-white/3">
-        <button 
-          onClick={handleGeneratePlan}
-          disabled={isTyping || messages.length <= 1}
-          className="w-full mb-2 py-2.5 px-4 bg-white/5 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed text-indigo-400 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/10 shadow-inner"
-        >
-          <Sparkles className="w-4 h-4" />
-          Generate Implementation Plan
-        </button>
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          {onExportArtifact && (
+            <button
+              onClick={() => onExportArtifact(messages)}
+              disabled={messages.length <= 1}
+              className="py-1.5 px-2 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-300 hover:text-zinc-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-white/8 text-left"
+              title="Create an artifact (plan, structured list, summary) in multiple file formats"
+            >
+              <FileDown className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-tight">
+                <span className="block">Create Artifact</span>
+                <span className="block text-[10px] text-zinc-500">Plan/List/Summary · MD/PDF/TXT</span>
+              </span>
+            </button>
+          )}
 
-        {onExportArtifact && (
-          <button
-            onClick={() => onExportArtifact(messages)}
-            disabled={messages.length <= 1}
-            className="w-full mb-2 py-2 px-4 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-white/8"
-          >
-            <FileDown className="w-4 h-4" />
-            Export Artifact
-          </button>
-        )}
-
-        {onRequestAIReview && (
-          <button
-            onClick={handleReviewApp}
-            disabled={isTyping || messages.length <= 1}
-            className="w-full mb-3 py-2 px-4 bg-violet-500/8 hover:bg-violet-500/15 disabled:opacity-50 disabled:cursor-not-allowed text-violet-400 hover:text-violet-200 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-violet-500/20"
-          >
-            <ScanEye className="w-4 h-4" />
-            Review App (A11y &amp; UX)
-          </button>
-        )}
+          {onRequestAIReview && (
+            <button
+              onClick={handleReviewApp}
+              disabled={isTyping || messages.length <= 1}
+              className="py-1.5 px-2 bg-violet-500/8 hover:bg-violet-500/15 disabled:opacity-50 disabled:cursor-not-allowed text-violet-300 hover:text-violet-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-violet-500/20"
+            >
+              <ScanEye className="w-3.5 h-3.5" />
+              Review App
+            </button>
+          )}
+        </div>
 
         {/* Staged notes indicator */}
         {stagedNotes && (
