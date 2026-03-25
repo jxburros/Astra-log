@@ -1,9 +1,33 @@
 import express from "express";
+import net from "net";
 import path from "path";
+
+function findAvailablePort(preferred: number): Promise<number> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(preferred, "0.0.0.0", () => {
+      const addr = server.address() as net.AddressInfo;
+      server.close(() => resolve(addr.port));
+    });
+    server.on("error", () => {
+      // preferred port is busy — ask the OS for any available port
+      const fallback = net.createServer();
+      fallback.listen(0, "0.0.0.0", () => {
+        const addr = fallback.address() as net.AddressInfo;
+        fallback.close(() => resolve(addr.port));
+      });
+      fallback.on("error", (err) => {
+        console.error("Failed to bind to any available port:", err);
+        process.exit(1);
+      });
+    });
+  });
+}
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const preferredPort = parseInt(process.env.PORT || "3000", 10);
+  const PORT = await findAvailablePort(preferredPort);
 
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));

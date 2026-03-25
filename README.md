@@ -46,9 +46,11 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
    ```
    npm run dev
    ```
-4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser (or the port shown in the terminal if 3000 was already in use).
 
 > **AI provider setup:** Click the ⚙️ settings icon in the top-right corner of the app to choose your AI provider and enter your API key. Keys are stored locally in your browser and proxied securely through the backend.
+
+> **Custom port:** Set the `PORT` environment variable (e.g. `PORT=8080 npm run dev`) to use a specific port. If the chosen port is unavailable, the server will automatically bind to the next free port and print the actual URL in the terminal.
 
 ## Build for Production
 
