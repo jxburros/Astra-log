@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -753,10 +753,11 @@ export default function App() {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-600 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <h1 className="text-xl font-semibold tracking-wide text-white">Astra<span className="text-white/40 font-light">/log</span></h1>
+          <img
+            src="/astralog-logo.svg"
+            alt="Astra/log"
+            className="h-9 w-auto"
+          />
         </div>
         
         <div className="flex items-center gap-3">

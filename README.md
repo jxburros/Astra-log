@@ -22,6 +22,7 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Offline Scratch Pad** — fully local, session-only thought buffer that is visually distinct from chat, includes quick clear, keyboard-first access (`Ctrl/Cmd + .` to toggle, `Ctrl/Cmd + Shift + K` to focus), optional timestamps/sections, and quick-bullet mode
 - **AI behavior layer + action chips** — passive handling for short inputs, concise structured responses, and one-click follow-up chips (`Expand`, `Clarify`, `What’s missing`)
 - **Diagnostic command runner** — AI can suggest terminal commands in chat; users can click to run with explicit confirmation (never auto-executes)
+- **Astra/log branding** — in-app header now uses the Astra/log logo mark and wordmark for consistent product identity
 
 ## Tech Stack
 

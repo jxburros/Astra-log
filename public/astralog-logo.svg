@@ -1,0 +1,35 @@
+<svg width="640" height="200" viewBox="0 0 640 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Astra slash log logo</title>
+  <desc id="desc">Four-point star dissolving into pixels with Astra slash log wordmark.</desc>
+  <g transform="translate(10 14)">
+    <path d="M108 0L125 68L194 85L125 102L108 170L91 102L22 85L91 68L108 0Z" fill="white"/>
+    <rect x="130" y="58" width="10" height="10" fill="white"/>
+    <rect x="146" y="48" width="10" height="10" fill="white"/>
+    <rect x="162" y="58" width="10" height="10" fill="white"/>
+    <rect x="178" y="48" width="10" height="10" fill="white"/>
+    <rect x="194" y="58" width="10" height="10" fill="white"/>
+    <rect x="140" y="74" width="10" height="10" fill="white"/>
+    <rect x="156" y="84" width="10" height="10" fill="white"/>
+    <rect x="172" y="74" width="10" height="10" fill="white"/>
+    <rect x="188" y="84" width="10" height="10" fill="white"/>
+    <rect x="204" y="74" width="10" height="10" fill="white"/>
+    <rect x="220" y="64" width="10" height="10" fill="white"/>
+    <rect x="220" y="94" width="10" height="10" fill="white"/>
+    <rect x="236" y="74" width="10" height="10" fill="white"/>
+    <rect x="252" y="84" width="10" height="10" fill="white"/>
+    <rect x="268" y="74" width="10" height="10" fill="white"/>
+    <rect x="284" y="64" width="10" height="10" fill="white"/>
+    <rect x="284" y="94" width="10" height="10" fill="white"/>
+    <rect x="300" y="74" width="10" height="10" fill="white"/>
+    <rect x="316" y="84" width="10" height="10" fill="white"/>
+    <rect x="332" y="74" width="10" height="10" fill="white"/>
+    <rect x="348" y="64" width="10" height="10" fill="white"/>
+    <rect x="348" y="94" width="10" height="10" fill="white"/>
+    <rect x="364" y="74" width="10" height="10" fill="white"/>
+    <rect x="380" y="84" width="10" height="10" fill="white"/>
+
+    <text x="0" y="196" fill="white" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="58" letter-spacing="8" font-weight="600">ASTRA</text>
+    <text x="284" y="196" fill="#31CCFF" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="58" font-weight="500">/</text>
+    <text x="328" y="196" fill="white" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="58" font-weight="500">log</text>
+  </g>
+</svg>
