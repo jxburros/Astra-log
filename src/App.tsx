@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
 import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
@@ -717,14 +718,41 @@ export default function App() {
         />
       )}
 
-      {isDragging && (
-        <div className="absolute inset-0 z-50 bg-indigo-500/10 backdrop-blur-sm border-2 border-indigo-500 border-dashed m-4 rounded-3xl flex items-center justify-center pointer-events-none">
-          <div className="bg-zinc-900/80 backdrop-blur-md p-8 rounded-2xl shadow-2xl flex flex-col items-center gap-4 border border-white/10">
-            <Upload className="w-16 h-16 text-indigo-400 animate-bounce" />
-            <h2 className="text-2xl font-bold text-white tracking-tight">Drop your zip here to get started</h2>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {isDragging && (
+          <motion.div
+            key="drag-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="absolute inset-0 z-50 pointer-events-none"
+          >
+            {/* Background dim + blur */}
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" />
+            {/* Drop border */}
+            <div className="absolute inset-3 rounded-3xl border-2 border-dashed border-indigo-400/60 bg-indigo-500/5" />
+            {/* Card */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <motion.div
+                initial={{ scale: 0.86, opacity: 0, y: 12 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.88, opacity: 0, y: 6 }}
+                transition={{ duration: 0.24, ease: [0.34, 1.56, 0.64, 1] }}
+                className="bg-black/70 backdrop-blur-2xl border border-white/12 p-10 rounded-3xl shadow-[0_0_80px_rgba(99,102,241,0.18)] flex flex-col items-center gap-5"
+              >
+                <div className="w-20 h-20 rounded-2xl bg-indigo-500/12 border border-indigo-400/25 flex items-center justify-center">
+                  <Upload className="w-9 h-9 text-indigo-300 animate-bounce" />
+                </div>
+                <div className="text-center">
+                  <h2 className="text-2xl font-semibold text-white tracking-tight">Drop your zip to begin</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Release to load the project</p>
+                </div>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <SettingsModal 
         isOpen={isSettingsOpen} 
@@ -752,9 +780,9 @@ export default function App() {
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-white/10 bg-black/20 backdrop-blur-md shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-white/8 bg-black/30 backdrop-blur-xl shrink-0 relative z-10">
         <div className="flex items-center gap-3">
-          <img src={AstraLogLogo} alt="Astra/log logo" className="h-12 w-auto" />
+          <img src={AstraLogLogo} alt="Astra/log logo" className="h-12 w-auto logo-animate" />
         </div>
         
         <div className="flex items-center gap-3">
@@ -776,28 +804,28 @@ export default function App() {
           {/* ── Ambient status indicator (Phase 1.4) ── */}
           {status !== 'idle' && (() => {
             if (status === 'error') return (
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-flicker shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-                <span className="text-rose-400 text-sm font-medium">Error</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-500/8 border border-rose-500/20">
+                <div className="w-2 h-2 rounded-full bg-rose-400 animate-flicker" />
+                <span className="text-rose-400 text-xs font-medium tracking-wide">Error</span>
               </div>
             );
             if (status === 'ready') return (
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]" />
-                <span className="text-emerald-400 text-sm font-medium">Running</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/8 border border-emerald-500/20">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 glow-success" />
+                <span className="text-emerald-400 text-xs font-medium tracking-wide">Running</span>
               </div>
             );
             if (recoveryMessage) return (
-              <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
-                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.7)]" />
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/8 border border-amber-500/20 rounded-full">
+                <div className="w-2 h-2 rounded-full bg-amber-400 glow-warning" />
                 <span className="text-amber-400 text-xs font-medium truncate max-w-[200px]">{recoveryMessage}</span>
               </div>
             );
             // booting / installing / starting / mounting / uploading
             return (
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_rgba(129,140,248,0.7)]" />
-                <span className="text-indigo-400 text-sm font-medium">{status.charAt(0).toUpperCase() + status.slice(1)}…</span>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/8 border border-indigo-500/20">
+                <div className="w-2 h-2 rounded-full bg-indigo-400 glow-accent" />
+                <span className="text-indigo-400 text-xs font-medium tracking-wide">{status.charAt(0).toUpperCase() + status.slice(1)}…</span>
               </div>
             );
           })()}
@@ -841,9 +869,9 @@ export default function App() {
         {!focusMode && !terminalCollapsed ? (
           <div
             style={{ width: terminalWidth }}
-            className="flex flex-col border-r border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden"
+            className="flex flex-col border-r border-white/8 bg-black/45 backdrop-blur-xl shrink-0 overflow-hidden animate-panel-in-left"
           >
-            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 shrink-0">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
               <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
                 <TerminalIcon className="w-3.5 h-3.5" />
                 Terminal
@@ -883,23 +911,23 @@ export default function App() {
         {/* Drag divider: Terminal ↔ Preview */}
         {!focusMode && !terminalCollapsed && (
           <div
-            className="w-1 shrink-0 bg-white/5 hover:bg-indigo-500/40 active:bg-indigo-500/60 cursor-col-resize transition-colors flex items-center justify-center group"
+            className="w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
             onMouseDown={startDrag('terminal', terminalWidth)}
           >
-            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         )}
 
         {/* ── Preview Panel ────────────────────────────────────────────────── */}
         <div className="flex-1 flex flex-col bg-[#09090b] min-w-[300px] overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
             <div className="flex items-center gap-2">
               <Globe className="w-3.5 h-3.5" />
               Preview
             </div>
             
             {previewBaseUrl && (
-              <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/40 rounded-md px-3 py-1.5 border border-white/10 normal-case tracking-normal text-sm shadow-inner">
+              <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
                 <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors">
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
@@ -916,7 +944,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="flex items-center gap-1 bg-black/40 rounded-md p-0.5 border border-white/10">
+            <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
               <button 
                 onClick={() => setPreviewMode('mobile')}
                 className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
@@ -964,8 +992,8 @@ export default function App() {
               <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
                 {status === 'idle' ? (
                   <>
-                    <div className="w-20 h-20 mb-6 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
-                      <Upload className="w-8 h-8 text-zinc-400" />
+                    <div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm">
+                      <Upload className="w-8 h-8 text-zinc-500" />
                     </div>
                     <p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p>
                   </>
@@ -992,10 +1020,10 @@ export default function App() {
         {/* Drag divider: Preview ↔ Chat */}
         {!focusMode && !chatCollapsed && (
           <div
-            className="w-1 shrink-0 bg-white/5 hover:bg-indigo-500/40 active:bg-indigo-500/60 cursor-col-resize transition-colors flex items-center justify-center group"
+            className="w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
             onMouseDown={startDrag('chat', chatWidth)}
           >
-            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         )}
 
@@ -1003,7 +1031,7 @@ export default function App() {
         {!focusMode && !chatCollapsed ? (
           <div
             style={{ width: chatWidth }}
-            className="flex flex-col shrink-0 overflow-hidden border-l border-white/10"
+            className="flex flex-col shrink-0 overflow-hidden border-l border-white/8 animate-panel-in-right"
           >
             <ChatPanel
               resetKey={chatKey}
@@ -1032,65 +1060,88 @@ export default function App() {
         ) : null}
 
         {/* Drag divider: Chat ↔ Scratch Pad */}
-        {!scratchCollapsed && (
-          <div
-            className="w-1 shrink-0 bg-white/5 hover:bg-amber-500/30 active:bg-amber-500/50 cursor-col-resize transition-colors flex items-center justify-center group"
-            onMouseDown={startDrag('scratch', scratchWidth)}
-          >
-            <GripVertical className="w-2.5 h-2.5 text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </div>
-        )}
+        <AnimatePresence>
+          {!scratchCollapsed && (
+            <motion.div
+              key="scratch-divider"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+              onMouseDown={startDrag('scratch', scratchWidth)}
+            >
+              <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* ── Scratch Pad Panel (Phase 1.2) ─────────────────────────────────── */}
-        {!scratchCollapsed ? (
-          <div
-            style={{ width: focusMode ? Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) : scratchWidth }}
-            className="flex flex-col border-l border-white/10 bg-zinc-950/70 backdrop-blur-sm shrink-0 overflow-hidden"
-          >
-            <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 bg-white/5 shrink-0">
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-                <PenLine className="w-3.5 h-3.5 text-amber-400" />
-                {focusMode ? (
-                  <span className="text-amber-300">Scratch Pad</span>
-                ) : (
-                  'Scratch Pad'
-                )}
-              </div>
-              <button
-                onClick={() => {
-                  if (scratchPinned) return;
-                  setScratchCollapsed(true);
-                }}
-                className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`}
-                title={scratchPinned ? 'Scratch pad is pinned open' : 'Collapse scratch pad'}
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setScratchPinned(p => !p)}
-                className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`}
-                title={scratchPinned ? 'Unpin scratch pad' : 'Pin scratch pad open'}
-              >
-                {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-            <ScratchPad resetKey={scratchKey} />
-          </div>
-        ) : (
-          /* Collapsed scratch pad tab */
-          <div className={`${collapsedTab} w-8 border-l py-3 gap-2`}>
-            <button
-              onClick={() => setScratchCollapsed(false)}
-              className="p-1 text-zinc-600 hover:text-amber-400 transition-colors"
-              title="Expand scratch pad"
+        <AnimatePresence mode="wait">
+          {!scratchCollapsed ? (
+            <motion.div
+              key="scratch-open"
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 24 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              style={{ width: focusMode ? Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) : scratchWidth }}
+              className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <span className={`${collapsedLabel} text-amber-900`} style={{ writingMode: 'vertical-rl' }}>
-              Notes
-            </span>
-          </div>
-        )}
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  <PenLine className="w-3.5 h-3.5 text-amber-400/80" />
+                  {focusMode ? (
+                    <span className="text-amber-300/90">Scratch Pad</span>
+                  ) : (
+                    'Scratch Pad'
+                  )}
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => {
+                      if (scratchPinned) return;
+                      setScratchCollapsed(true);
+                    }}
+                    className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`}
+                    title={scratchPinned ? 'Scratch pad is pinned open' : 'Collapse scratch pad'}
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setScratchPinned(p => !p)}
+                    className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`}
+                    title={scratchPinned ? 'Unpin scratch pad' : 'Pin scratch pad open'}
+                  >
+                    {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <ScratchPad resetKey={scratchKey} />
+            </motion.div>
+          ) : (
+            /* Collapsed scratch pad tab */
+            <motion.div
+              key="scratch-collapsed"
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 8 }}
+              transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+              className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
+            >
+              <button
+                onClick={() => setScratchCollapsed(false)}
+                className="p-1 text-zinc-600 hover:text-amber-400 transition-colors"
+                title="Expand scratch pad"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>
+                Notes
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </main>
     </div>

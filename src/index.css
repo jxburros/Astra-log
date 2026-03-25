@@ -6,34 +6,140 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* ── Design Tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --astra-bg:             #09090b;
+  --astra-surface-0:      rgba(0, 0, 0, 0.50);   /* deepest panel body */
+  --astra-surface-1:      rgba(0, 0, 0, 0.35);   /* panel body */
+  --astra-surface-2:      rgba(255, 255, 255, 0.04); /* panel header / raised */
+  --astra-surface-3:      rgba(255, 255, 255, 0.07); /* hover raised */
+
+  /* Borders */
+  --astra-border:         rgba(255, 255, 255, 0.08);
+  --astra-border-accent:  rgba(255, 255, 255, 0.14);
+
+  /* Accent gradient */
+  --astra-accent-from:    #4f46e5; /* indigo-600 */
+  --astra-accent-to:      #c026d3; /* fuchsia-600 */
+  --astra-accent-mid:     #7c3aed; /* violet-600 */
+
+  /* State glows */
+  --astra-glow-success:   rgba(52, 211, 153, 0.65);
+  --astra-glow-warning:   rgba(251, 191, 36, 0.65);
+  --astra-glow-error:     rgba(239, 68, 68, 0.65);
+  --astra-glow-accent:    rgba(99, 102, 241, 0.50);
+
+  /* Blur depths */
+  --blur-sm:  4px;
+  --blur-md:  12px;
+  --blur-lg:  24px;
+  --blur-xl:  48px;
+}
+
 body {
-  background-color: #09090b;
+  background-color: var(--astra-bg);
   color: #fafafa;
 }
 
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 3px;
+  transition: background 0.2s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: rgba(255, 255, 255, 0.20);
 }
 
-/* Ambient status glow flicker for error state */
+/* ── Logo: slow ambient breathe ─────────────────────────────────────────────── */
+@keyframes logo-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.18))
+            drop-shadow(0 0 20px rgba(124, 58, 237, 0.08));
+    transform: translateY(0px);
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(99, 102, 241, 0.40))
+            drop-shadow(0 0 40px rgba(124, 58, 237, 0.22));
+    transform: translateY(-1.5px);
+  }
+}
+
+.logo-animate {
+  animation: logo-breathe 5s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* ── Panel enter animations ──────────────────────────────────────────────────── */
+@keyframes panel-in-left {
+  from { opacity: 0; transform: translateX(-14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes panel-in-right {
+  from { opacity: 0; transform: translateX(14px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes panel-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-panel-in-left {
+  animation: panel-in-left 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animate-panel-in-right {
+  animation: panel-in-right 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animate-panel-in-up {
+  animation: panel-in-up 0.18s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── Status glow flicker (error) ─────────────────────────────────────────────── */
 @keyframes flicker {
-  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
-  40%       { opacity: 0.5; box-shadow: 0 0 4px rgba(239, 68, 68, 0.3); }
-  60%       { opacity: 0.8; box-shadow: 0 0 6px rgba(239, 68, 68, 0.5); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--astra-glow-error); }
+  40%       { opacity: 0.5; box-shadow: 0 0 3px rgba(239, 68, 68, 0.25); }
+  60%       { opacity: 0.8; box-shadow: 0 0 5px rgba(239, 68, 68, 0.45); }
+}
+.animate-flicker {
+  animation: flicker 1.4s ease-in-out infinite;
 }
 
-/* Intentional-destruction overlay: radial wipe expands from center */
+/* ── Status glow pulse (success) ─────────────────────────────────────────────── */
+@keyframes glow-pulse-success {
+  0%, 100% { box-shadow: 0 0 8px var(--astra-glow-success); }
+  50%       { box-shadow: 0 0 20px var(--astra-glow-success), 0 0 40px rgba(52, 211, 153, 0.25); }
+}
+.glow-success {
+  animation: glow-pulse-success 2.5s ease-in-out infinite;
+}
+
+/* ── Status glow pulse (warning) ─────────────────────────────────────────────── */
+@keyframes glow-pulse-warning {
+  0%, 100% { box-shadow: 0 0 6px var(--astra-glow-warning); }
+  50%       { box-shadow: 0 0 16px var(--astra-glow-warning), 0 0 32px rgba(251, 191, 36, 0.20); }
+}
+.glow-warning {
+  animation: glow-pulse-warning 2s ease-in-out infinite;
+}
+
+/* ── Status glow pulse (accent / loading) ───────────────────────────────────── */
+@keyframes glow-pulse-accent {
+  0%, 100% { box-shadow: 0 0 6px var(--astra-glow-accent); }
+  50%       { box-shadow: 0 0 16px var(--astra-glow-accent), 0 0 30px rgba(99, 102, 241, 0.20); }
+}
+.glow-accent {
+  animation: glow-pulse-accent 1.8s ease-in-out infinite;
+}
+
+/* ── Intentional-destruction overlay ─────────────────────────────────────────── */
 @keyframes radial-wipe-in {
   0%   { clip-path: circle(0% at 50% 50%); opacity: 1; }
   100% { clip-path: circle(150% at 50% 50%); opacity: 1; }
@@ -42,10 +148,6 @@ body {
   0%   { opacity: 1; }
   100% { opacity: 0; }
 }
-
-.animate-flicker {
-  animation: flicker 1.4s ease-in-out infinite;
-}
 .animate-wipe-in {
   animation: radial-wipe-in 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
@@ -53,8 +155,44 @@ body {
   animation: radial-wipe-out 0.3s ease-out forwards;
 }
 
-/* Prevent text selection while dragging panel dividers */
+/* ── Drag-and-drop card pop-in ───────────────────────────────────────────────── */
+@keyframes drop-card-in {
+  from { opacity: 0; transform: scale(0.88) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-drop-card-in {
+  animation: drop-card-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ── Glass surface utilities ─────────────────────────────────────────────────── */
+.glass-0 {
+  background: var(--astra-surface-0);
+  backdrop-filter: blur(var(--blur-xl));
+  -webkit-backdrop-filter: blur(var(--blur-xl));
+  border: 1px solid var(--astra-border);
+}
+.glass-1 {
+  background: var(--astra-surface-1);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: 1px solid var(--astra-border);
+}
+.glass-2 {
+  background: var(--astra-surface-2);
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
+  border: 1px solid var(--astra-border);
+}
+
+/* ── Prevent text selection while dragging panel dividers ─────────────────────── */
 .dragging-panel * {
   user-select: none !important;
   cursor: col-resize !important;
+}
+
+/* ── Global interaction smoothing ─────────────────────────────────────────────── */
+button, a, input, select, textarea, label {
+  transition-property: color, background-color, border-color, opacity, box-shadow, transform, filter;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
