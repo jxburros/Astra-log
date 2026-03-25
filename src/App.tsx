@@ -35,8 +35,11 @@ type CustomLayoutConfig = { columns: CustomColumnConfig[] };
 
 const DEFAULT_CUSTOM_LAYOUT: CustomLayoutConfig = {
   columns: [
+    // 22% — Terminal only
     { widthFraction: 0.22, panels: [{ panel: 'terminal', heightFraction: 1, hidden: false }] },
+    // 48% — Preview only
     { widthFraction: 0.48, panels: [{ panel: 'preview', heightFraction: 1, hidden: false }] },
+    // 30% — Chat (55%) stacked above Scratch (45%)
     { widthFraction: 0.30, panels: [
       { panel: 'chat', heightFraction: 0.55, hidden: false },
       { panel: 'scratch', heightFraction: 0.45, hidden: false }
@@ -1044,6 +1047,37 @@ export default function App() {
   // Horizontal collapsed bar (for vertical layout panels)
   const collapsedHBar = 'flex flex-row items-center justify-between border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden h-8 px-3 gap-2';
 
+  // ── Custom layout panel helpers ────────────────────────────────────────────
+  /** Move a panel to a different column (append to end when movingRight=false, unshift when movingRight=true). */
+  const movePanelToColumn = (entry: CustomPanelEntry, fromColIdx: number, toColIdx: number, prepend = false) => {
+    setCustomLayout(prev => {
+      const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+      cols[fromColIdx].panels = cols[fromColIdx].panels.filter(p => p.panel !== entry.panel);
+      if (prepend) cols[toColIdx].panels.unshift({ ...entry });
+      else cols[toColIdx].panels.push({ ...entry });
+      return { ...prev, columns: cols };
+    });
+  };
+  /** Swap a panel with its neighbour in the same column. */
+  const swapPanelInColumn = (colIdx: number, panelIdx: number, dir: 'up' | 'down') => {
+    setCustomLayout(prev => {
+      const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+      const ps = cols[colIdx].panels;
+      const swapIdx = dir === 'up' ? panelIdx - 1 : panelIdx + 1;
+      [ps[swapIdx], ps[panelIdx]] = [ps[panelIdx], ps[swapIdx]];
+      return { ...prev, columns: cols };
+    });
+  };
+  /** Set a panel's hidden flag in a specific column. */
+  const setPanelHidden = (colIdx: number, panelId: PanelId, hidden: boolean) => {
+    setCustomLayout(prev => ({
+      ...prev,
+      columns: prev.columns.map((c, i) => i !== colIdx ? c : {
+        ...c, panels: c.panels.map(p => p.panel === panelId ? { ...p, hidden } : p)
+      })
+    }));
+  };
+
   return (
     <div 
       className="flex flex-col h-screen bg-[#09090b] text-zinc-200 font-sans relative"
@@ -1779,7 +1813,7 @@ export default function App() {
                 {/* Column */}
                 <div
                   style={{ flex: col.widthFraction }}
-                  className="flex flex-col overflow-hidden min-w-0 min-h-0 border-r border-white/8 last:border-r-0"
+                  className="relative flex flex-col overflow-hidden min-w-0 min-h-0 border-r border-white/8 last:border-r-0"
                 >
                   {visiblePanels.map((entry, vIdx) => {
                     const isLast = vIdx === visiblePanels.length - 1;
@@ -1797,59 +1831,18 @@ export default function App() {
                                   {layoutEditMode && (
                                     <>
                                       {colIdx > 0 && (
-                                        <button
-                                          onClick={() => setCustomLayout(prev => {
-                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
-                                            cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'terminal');
-                                            cols[colIdx - 1].panels.push({ ...entry });
-                                            return { ...prev, columns: cols };
-                                          })}
-                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move left"
-                                        ><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
                                       )}
                                       {colIdx < customLayout.columns.length - 1 && (
-                                        <button
-                                          onClick={() => setCustomLayout(prev => {
-                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
-                                            cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'terminal');
-                                            cols[colIdx + 1].panels.unshift({ ...entry });
-                                            return { ...prev, columns: cols };
-                                          })}
-                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move right"
-                                        ><ChevronRight className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
                                       )}
                                       {realIdx > 0 && (
-                                        <button
-                                          onClick={() => setCustomLayout(prev => {
-                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
-                                            const ps = cols[colIdx].panels;
-                                            [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]];
-                                            return { ...prev, columns: cols };
-                                          })}
-                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move up"
-                                        ><ChevronUp className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>
                                       )}
                                       {realIdx < col.panels.length - 1 && (
-                                        <button
-                                          onClick={() => setCustomLayout(prev => {
-                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
-                                            const ps = cols[colIdx].panels;
-                                            [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]];
-                                            return { ...prev, columns: cols };
-                                          })}
-                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move down"
-                                        ><ChevronDown className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
                                       )}
-                                      <button
-                                        onClick={() => setCustomLayout(prev => ({
-                                          ...prev,
-                                          columns: prev.columns.map((c, i) => i !== colIdx ? c : {
-                                            ...c,
-                                            panels: c.panels.map(p => p.panel === 'terminal' ? { ...p, hidden: true } : p)
-                                          })
-                                        }))}
-                                        className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors" title="Hide terminal"
-                                      ><EyeOff className="w-3.5 h-3.5" /></button>
+                                      <button onClick={() => setPanelHidden(colIdx, 'terminal', true)} className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors" title="Hide terminal"><EyeOff className="w-3.5 h-3.5" /></button>
                                     </>
                                   )}
                                   <button onClick={() => setTerminalCollapsed(c => !c)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title={terminalCollapsed ? 'Expand terminal' : 'Collapse terminal'}>
@@ -1872,10 +1865,10 @@ export default function App() {
                                   {layoutEditMode && (
                                     <>
                                       {colIdx > 0 && (
-                                        <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'preview'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
                                       )}
                                       {colIdx < customLayout.columns.length - 1 && (
-                                        <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'preview'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
+                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
                                       )}
                                     </>
                                   )}
@@ -1915,11 +1908,11 @@ export default function App() {
                             <div key="chat" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0">
                               {layoutEditMode && (
                                 <div className="flex items-center gap-0.5 px-2 py-1 border-b border-violet-500/20 bg-violet-500/5 shrink-0">
-                                  {colIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'chat'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
-                                  {colIdx < customLayout.columns.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'chat'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
-                                  {realIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
-                                  {realIdx < col.panels.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
-                                  <button onClick={() => setCustomLayout(prev => ({ ...prev, columns: prev.columns.map((c, i) => i !== colIdx ? c : { ...c, panels: c.panels.map(p => p.panel === 'chat' ? { ...p, hidden: true } : p) }) }))} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide"><EyeOff className="w-3.5 h-3.5" /></button>
+                                  {colIdx > 0 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
+                                  {colIdx < customLayout.columns.length - 1 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
+                                  {realIdx > 0 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
+                                  {realIdx < col.panels.length - 1 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
+                                  <button onClick={() => setPanelHidden(colIdx, 'chat', true)} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide"><EyeOff className="w-3.5 h-3.5" /></button>
                                   <span className="ml-auto text-[10px] text-violet-400/60 uppercase tracking-wider">AI Chat</span>
                                 </div>
                               )}
@@ -1929,13 +1922,7 @@ export default function App() {
                                 getProjectContext={getProjectContext}
                                 troubleshootRequest={troubleshootRequest}
                                 onTroubleshootHandled={() => setTroubleshootRequest(null)}
-                                onCollapse={() => setCustomLayout(prev => ({
-                                  ...prev,
-                                  columns: prev.columns.map((c, i) => i !== colIdx ? c : {
-                                    ...c,
-                                    panels: c.panels.map(p => p.panel === 'chat' ? { ...p, hidden: true } : p)
-                                  })
-                                }))}
+                                onCollapse={() => setPanelHidden(colIdx, 'chat', true)}
                                 onRunDiagnosticCommand={handleRunDiagnosticCommand}
                                 onExportArtifact={handleExportArtifact}
                                 stagedNotes={stagedNotes}
@@ -1954,11 +1941,11 @@ export default function App() {
                                 <div className="flex items-center gap-0.5">
                                   {layoutEditMode && (
                                     <>
-                                      {colIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'scratch'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
-                                      {colIdx < customLayout.columns.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'scratch'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
-                                      {realIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
-                                      {realIdx < col.panels.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
-                                      <button onClick={() => setCustomLayout(prev => ({ ...prev, columns: prev.columns.map((c, i) => i !== colIdx ? c : { ...c, panels: c.panels.map(p => p.panel === 'scratch' ? { ...p, hidden: true } : p) }) }))} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide scratch pad"><EyeOff className="w-3.5 h-3.5" /></button>
+                                      {colIdx > 0 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
+                                      {colIdx < customLayout.columns.length - 1 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
+                                      {realIdx > 0 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
+                                      {realIdx < col.panels.length - 1 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
+                                      <button onClick={() => setPanelHidden(colIdx, 'scratch', true)} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide scratch pad"><EyeOff className="w-3.5 h-3.5" /></button>
                                     </>
                                   )}
                                   <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
@@ -1980,20 +1967,33 @@ export default function App() {
                       <React.Fragment key={entry.panel}>
                         {panelEl}
                         {/* Row drag divider within column */}
-                        {!isLast && (() => {
-                          return (
-                            <div
-                              className="resize-divider h-1 shrink-0 bg-white/4 hover:bg-violet-500/40 active:bg-violet-500/60 cursor-row-resize transition-all duration-150 flex items-center justify-center group hover:h-1.5"
-                              onMouseDown={startDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
-                              onTouchStart={startTouchDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
-                            >
-                              <GripHorizontal className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </div>
-                          );
-                        })()}
+                        {!isLast && (
+                          <div
+                            className="resize-divider h-1 shrink-0 bg-white/4 hover:bg-violet-500/40 active:bg-violet-500/60 cursor-row-resize transition-all duration-150 flex items-center justify-center group hover:h-1.5"
+                            onMouseDown={startDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
+                            onTouchStart={startTouchDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
+                          >
+                            <GripHorizontal className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        )}
                       </React.Fragment>
                     );
                   })}
+                  {/* Show hidden panels button in layout edit mode */}
+                  {layoutEditMode && col.panels.some(p => p.hidden) && (
+                    <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
+                      {col.panels.filter(p => p.hidden).map(hp => (
+                        <button
+                          key={hp.panel}
+                          onClick={() => setPanelHidden(colIdx, hp.panel, false)}
+                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded border border-violet-500/30 transition-colors"
+                          title={`Show ${hp.panel}`}
+                        >
+                          <Eye className="w-3 h-3" /> {hp.panel}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {/* Column drag divider */}
                 {colIdx < customLayout.columns.filter((c) => c.panels.some(p => !p.hidden)).length - 1 && (
@@ -2003,27 +2003,6 @@ export default function App() {
                     onTouchStart={startTouchDrag(`custom-col-${colIdx}`, col.widthFraction)}
                   >
                     <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                )}
-                {/* Show hidden panels button in layout edit mode */}
-                {layoutEditMode && col.panels.some(p => p.hidden) && (
-                  <div className="absolute bottom-2 right-2 flex flex-col gap-1">
-                    {col.panels.filter(p => p.hidden).map(hp => (
-                      <button
-                        key={hp.panel}
-                        onClick={() => setCustomLayout(prev => ({
-                          ...prev,
-                          columns: prev.columns.map((c, i) => i !== colIdx ? c : {
-                            ...c,
-                            panels: c.panels.map(p => p.panel === hp.panel ? { ...p, hidden: false } : p)
-                          })
-                        }))}
-                        className="flex items-center gap-1 px-2 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded border border-violet-500/30 transition-colors"
-                        title={`Show ${hp.panel}`}
-                      >
-                        <Eye className="w-3 h-3" /> {hp.panel}
-                      </button>
-                    ))}
                   </div>
                 )}
               </React.Fragment>
