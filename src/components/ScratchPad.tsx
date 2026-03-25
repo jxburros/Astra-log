@@ -4,32 +4,44 @@ import { Trash2, Clock3, List, Heading2 } from 'lucide-react';
 interface ScratchPadProps {
   /** Increment to clear the scratch pad content on session reset. */
   resetKey?: number;
+  /** Optional controlled content from parent. */
+  value?: string;
+  /** Notifies parent when content changes. */
+  onChange?: (value: string) => void;
 }
 
-export function ScratchPad({ resetKey }: ScratchPadProps) {
+export function ScratchPad({ resetKey, value, onChange }: ScratchPadProps) {
   const [content, setContent] = useState('');
   const [bulletMode, setBulletMode] = useState(false);
+  const currentContent = value ?? content;
+  const setCurrentContent = (next: string) => {
+    if (value === undefined) {
+      setContent(next);
+    }
+    onChange?.(next);
+  };
 
   // Clear notes whenever a new session starts
   useEffect(() => {
-    setContent('');
+    setCurrentContent('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
   const handleClear = () => {
-    if (!content) return;
+    if (!currentContent) return;
     if (window.confirm('Clear all scratch pad notes?')) {
-      setContent('');
+      setCurrentContent('');
     }
   };
 
   const insertTimestamp = () => {
     const now = new Date();
     const stamp = `\n\n--- ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ---\n`;
-    setContent(prev => `${prev}${stamp}`);
+    setCurrentContent(`${currentContent}${stamp}`);
   };
 
   const insertSection = () => {
-    setContent(prev => `${prev}\n\n## Notes\n`);
+    setCurrentContent(`${currentContent}\n\n## Notes\n`);
   };
 
   return (
@@ -63,7 +75,7 @@ export function ScratchPad({ resetKey }: ScratchPadProps) {
       <div className="flex-1 min-h-0 relative">
         <textarea
           id="scratch-pad-input"
-          value={content}
+          value={currentContent}
           onChange={e => {
             const value = e.target.value;
             if (bulletMode) {
@@ -73,10 +85,10 @@ export function ScratchPad({ resetKey }: ScratchPadProps) {
                 if (!line.trim()) return line;
                 return line.startsWith('- ') ? line : `- ${line}`;
               }).join('\n');
-              setContent(normalized);
+              setCurrentContent(normalized);
               return;
             }
-            setContent(value);
+            setCurrentContent(value);
           }}
           placeholder="Private notes — never shared with AI…"
           className="absolute inset-0 w-full h-full bg-transparent text-sm text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none font-mono leading-relaxed p-4"
@@ -87,9 +99,9 @@ export function ScratchPad({ resetKey }: ScratchPadProps) {
         <span className="text-[10px] text-zinc-700 select-none">Session only · cleared on reset</span>
         <button
           onClick={handleClear}
-          className={`p-1 transition-colors ${content ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-800 cursor-default'}`}
+          className={`p-1 transition-colors ${currentContent ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-800 cursor-default'}`}
           title="Clear notes"
-          disabled={!content}
+          disabled={!currentContent}
         >
           <Trash2 className="w-3 h-3" />
         </button>

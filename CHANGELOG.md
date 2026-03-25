@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-03-25 - Codex
+- Expanded Artifact Export to support three output styles: simple recap of user notes sent to AI, implementation plan, and structured fix list (no plan).
+- Added optional Scratch Pad inclusion toggle in Export modal; Scratch Pad remains local-only and is appended at the bottom only when explicitly selected.
+- Added additional export file types: `.txt`, `.html`, and `.json` alongside existing Markdown and PDF exports.
+- Updated snapshot metadata to track style context and refreshed README export documentation.
+
 ## 2026-03-25 - GitHub Copilot
 - **Phase 5 — Artifact System** (complete pass)
 - **5.1 Structured Export**: Added `src/lib/exportUtils.ts` with `parseArtifactSections` (extracts UX / Logic / Architecture headings from AI messages), `generateMarkdownDocument`, `downloadMarkdown`, and `printAsPDF` (browser-native print dialog, no new dependencies)
