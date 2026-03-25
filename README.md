@@ -14,10 +14,11 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Sandboxed Preview** — the preview iframe is hardened with `sandbox` restrictions that block top-navigation and other privileged operations, isolating the running app from the main workspace UI
 - **Live preview** — responsive in-browser preview with mobile, tablet, and desktop viewport modes and a navigable URL bar
 - **Layout presets** — three switchable workspace layouts via the header Layout Switcher:
-  - **Standard** — Terminal (left) · Preview (center) · Chat + Scratch Pad (right); all panels resizable by drag
+  - **Standard** — Terminal · Preview · Chat + Scratch Pad (right panel); all panels resizable by drag; Chat and Scratch Pad sit side-by-side within the right panel and expand to fill it when the other is collapsed
   - **Architect** — Preview + Chat side-by-side on top, full-width Terminal bottom row with vertical drag-to-resize
   - **Zen Focus** — Scratch Pad (left) · Preview (right) only; distraction-free review mode
-- **Responsive / Mobile layout** — on viewports below 1024 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
+- **Layout Edit Mode** — click the ✥ (Move) icon in the header to enter edit mode; panels gain a violet highlight and arrow buttons appear to move the Terminal left/right and swap Chat/Scratch Pad order within the right panel; persisted in sessionStorage
+- **Responsive / Mobile layout** — on viewports below 900 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
 - **Interactive terminal** — full xterm.js shell backed by the WebContainer
 - **AI chat panel** — context-aware chat that reads your project's file tree and source; supports multiple providers:
   - Google Gemini (`gemini-2.5-flash`)

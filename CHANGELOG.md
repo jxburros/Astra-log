@@ -1,5 +1,16 @@
 # Changelog
 
+## 2025-07-17 - GitHub Copilot
+- **Responsive breakpoint**: Lowered `isMobileLayout` threshold from `< 1024` to `< 900` px so the mobile drawer activates earlier on mid-size windows
+- **Chat + Scratch side-by-side**: Restructured the standard layout to combine Chat and Scratch Pad into a single "right panel" container; when one is collapsed the other expands to fill the full right panel width; internal drag divider resizes between them
+- **Right panel drag handle**: Added `right-panel` drag type so users can resize the combined Chat+Scratch area against the Preview with a single drag handle
+- **Layout Edit Mode** (`layoutEditMode` state + `Move` icon toggle in header): when active, panels get a violet ring indicator; Terminal panel shows arrow buttons to swap `terminalSide` (`left`/`right`); Scratch Pad shows arrow buttons to swap `chatFirst` order within the right panel
+- **Terminal side toggle** (`terminalSide` state): Terminal can now be moved to the left or right of the Preview; persisted in sessionStorage
+- **Chat-first order toggle** (`chatFirst` state): Chat and Scratch Pad order within the right panel is user-configurable; persisted in sessionStorage
+- **`rightPanelWidth` state**: Total width of the combined right panel persisted in sessionStorage (default 620 px)
+- **Focus mode Scratch Pad**: Moved into the new layout structure as a dedicated right section so it still expands correctly in Focus/Zen mode
+- Updated `startDrag` and `startTouchDrag` function signatures to accept `'right-panel'` and `'chat-scratch'` panel types
+
 ## 2026-03-25 - GitHub Copilot
 - **Phase 3.1 — Welcome Modal**: Implemented one-time splash screen (`WelcomeModal.tsx`) that explains Zero Persistence and Consultant-Only core principles; shown once on first load (tracked via `localStorage.astra_welcome_seen`); provides "Take a quick tour" or "Skip for now" actions
 - **Phase 3.1 — Workspace Tour**: Implemented 3-step guided tour overlay (`WorkspaceTour.tsx`) using SVG spotlight cutout; highlights Terminal (Ingestion), Preview (Output), and Scratch Pad (Private Thoughts) with step indicators and contextual tooltip cards; accessible from the Welcome Modal
