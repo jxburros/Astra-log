@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, Sparkles, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, GripVertical, Pin, PinOff } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
@@ -71,6 +71,10 @@ export default function App() {
   const [scratchCollapsed, setScratchCollapsed] = useState<boolean>(() =>
     sessionStorage.getItem('layout_scratchCollapsed') === 'true'
   );
+  /** Prevent accidental scratch pad collapse during active note-taking. */
+  const [scratchPinned, setScratchPinned] = useState<boolean>(() =>
+    sessionStorage.getItem('layout_scratchPinned') === 'true'
+  );
   /** Focus / Zen mode: hides terminal + chat, maximises preview + scratch pad. */
   const [focusMode, setFocusMode] = useState(false);
   /** When true an intentional-destruction animation is playing. */
@@ -138,7 +142,30 @@ export default function App() {
     sessionStorage.setItem('layout_terminalCollapsed', String(terminalCollapsed));
     sessionStorage.setItem('layout_chatCollapsed', String(chatCollapsed));
     sessionStorage.setItem('layout_scratchCollapsed', String(scratchCollapsed));
-  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed]);
+    sessionStorage.setItem('layout_scratchPinned', String(scratchPinned));
+  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned]);
+
+  // Keyboard-first Scratch Pad access (Ctrl/Cmd + . to toggle, Ctrl/Cmd + Shift + K to focus)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const metaOrCtrl = e.metaKey || e.ctrlKey;
+      if (metaOrCtrl && e.key === '.') {
+        e.preventDefault();
+        setScratchCollapsed(prev => !prev);
+        return;
+      }
+      if (metaOrCtrl && e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setScratchCollapsed(false);
+        setTimeout(() => {
+          const scratchTextarea = document.getElementById('scratch-pad-input') as HTMLTextAreaElement | null;
+          scratchTextarea?.focus();
+        }, 0);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     const tauriWindow = window as Window & { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
@@ -564,6 +591,18 @@ export default function App() {
     await processZipFile(file);
   };
 
+  const handleRunDiagnosticCommand = (command: string) => {
+    const trimmed = command.trim();
+    if (!trimmed) return;
+    if (!shellWriterRef.current) {
+      window.alert('Terminal shell is not ready yet. Start a project first.');
+      return;
+    }
+    const confirmed = window.confirm(`Run this command in the terminal?\n\n${trimmed}`);
+    if (!confirmed) return;
+    shellWriterRef.current.write(`${trimmed}\n`);
+  };
+
   if (!isIsolated) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-950 text-white p-6 text-center">
@@ -897,6 +936,7 @@ export default function App() {
               troubleshootRequest={troubleshootRequest}
               onTroubleshootHandled={() => setTroubleshootRequest(null)}
               onCollapse={() => setChatCollapsed(true)}
+              onRunDiagnosticCommand={handleRunDiagnosticCommand}
             />
           </div>
         ) : !focusMode ? (
@@ -941,11 +981,21 @@ export default function App() {
                 )}
               </div>
               <button
-                onClick={() => setScratchCollapsed(true)}
-                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
-                title="Collapse scratch pad"
+                onClick={() => {
+                  if (scratchPinned) return;
+                  setScratchCollapsed(true);
+                }}
+                className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`}
+                title={scratchPinned ? 'Scratch pad is pinned open' : 'Collapse scratch pad'}
               >
                 <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setScratchPinned(p => !p)}
+                className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`}
+                title={scratchPinned ? 'Unpin scratch pad' : 'Pin scratch pad open'}
+              >
+                {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
               </button>
             </div>
             <ScratchPad resetKey={scratchKey} />
