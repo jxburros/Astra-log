@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-03-26 - GitHub Copilot
+- **Standard layout**: Replaced horizontal side-by-side Chat+Scratch right panel with a vertical stack (Chat top / Scratch bottom, swappable); added `chatPanelHeight` state and horizontal drag divider (`GripHorizontal`) to resize the split
+- **Custom Layout mode**: Added new `custom` layout preset (4th button in header switcher, `LayoutGrid` icon) allowing free arrangement of Terminal, Preview, Chat, and Scratch panels across resizable columns and rows
+- **Custom layout types**: Added `PanelId`, `CustomPanelEntry`, `CustomColumnConfig`, `CustomLayoutConfig` types and `DEFAULT_CUSTOM_LAYOUT` constant
+- **Drag system**: Extended `onMouseMove` and `startTouchDrag` handlers to support `chat-scratch-height`, `custom-col-*`, and `custom-row-*` drag operations; `dragRef.panel` type widened to `string | null`
+- **Persistence**: `chatPanelHeight` and `customLayout` now persisted to sessionStorage alongside existing layout state
+- **Refs**: Added `rightPanelRef` (standard layout right panel bounds) and `customLayoutContainerRef` (custom layout container for drag calculations)
+- **UI**: Added `collapsedHBar` helper style for horizontal collapsed bars in the vertical stack; layout edit mode shows panel move/hide controls in custom layout
+- **Cleanup**: Removed spurious `- 0` arithmetic in `containerH` calculation
+
 ## 2026-03-25 - GitHub Copilot
 - **Documentation audit**: Updated `README.md` AI chat panel feature section to reflect the current 2026 model registry; replaced outdated model examples (`gemini-2.5-flash`, `gpt-4o`, `claude-3-5-sonnet`) with the full current lists for Gemini, OpenAI, Anthropic, and Local/Ollama providers
 - **Documentation audit**: Expanded the `2026 Model Registry` feature bullet in `README.md` to include Claude 4.5 (Opus/Sonnet/Haiku) model additions and the full list of removed deprecated models (GPT-4 Turbo, o1/o1-mini) alongside the previously noted Gemini 1.5 and Claude 3 Opus removals

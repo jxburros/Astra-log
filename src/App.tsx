@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, Move } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, GripHorizontal, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, Move, LayoutGrid } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -25,7 +25,24 @@ import AstraLogLogo from '../astra-log-new-logo.svg';
 
 type Status = 'idle' | 'uploading' | 'booting' | 'mounting' | 'installing' | 'starting' | 'ready' | 'error';
 type PreviewMode = 'mobile' | 'tablet' | 'desktop';
-type LayoutPreset = 'standard' | 'architect' | 'zen-focus';
+type LayoutPreset = 'standard' | 'architect' | 'zen-focus' | 'custom';
+
+// Custom layout types
+type PanelId = 'terminal' | 'preview' | 'chat' | 'scratch';
+type CustomPanelEntry = { panel: PanelId; heightFraction: number; hidden: boolean };
+type CustomColumnConfig = { widthFraction: number; panels: CustomPanelEntry[] };
+type CustomLayoutConfig = { columns: CustomColumnConfig[] };
+
+const DEFAULT_CUSTOM_LAYOUT: CustomLayoutConfig = {
+  columns: [
+    { widthFraction: 0.22, panels: [{ panel: 'terminal', heightFraction: 1, hidden: false }] },
+    { widthFraction: 0.48, panels: [{ panel: 'preview', heightFraction: 1, hidden: false }] },
+    { widthFraction: 0.30, panels: [
+      { panel: 'chat', heightFraction: 0.55, hidden: false },
+      { panel: 'scratch', heightFraction: 0.45, hidden: false }
+    ] },
+  ]
+};
 
 /** Duration (ms) for the radial-wipe-in animation — must match CSS `animate-wipe-in`. */
 const WIPE_IN_DURATION = 600;
@@ -131,6 +148,16 @@ export default function App() {
     const v = sessionStorage.getItem('layout_rightPanelWidth');
     return v ? Number(v) : 620;
   });
+  /** Height (px) of the Chat panel in the standard layout's vertical right column. */
+  const [chatPanelHeight, setChatPanelHeight] = useState<number>(() => {
+    const v = sessionStorage.getItem('layout_chatPanelHeight');
+    return v ? Number(v) : 400;
+  });
+  /** Custom layout configuration — persisted to sessionStorage. */
+  const [customLayout, setCustomLayout] = useState<CustomLayoutConfig>(() => {
+    const v = sessionStorage.getItem('layout_customLayout');
+    try { return v ? JSON.parse(v) : DEFAULT_CUSTOM_LAYOUT; } catch { return DEFAULT_CUSTOM_LAYOUT; }
+  });
   /** Local-only scratch pad content (never sent to AI). */
   const [scratchPadContent, setScratchPadContent] = useState('');
   /** Scratch Pad notes staged by the user to be prepended to the next AI message. */
@@ -192,9 +219,13 @@ export default function App() {
   // ── Panel drag-to-resize ───────────────────────────────────────────────────
   /** Tracks an in-progress panel-drag operation. */
   const dragRef = useRef<{
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch' | null;
+    panel: string | null;
     startX: number; startY: number; startWidth: number;
   }>({ panel: null, startX: 0, startY: 0, startWidth: 0 });
+  /** Ref to the standard-layout right panel, used for chat/scratch height drag bounds. */
+  const rightPanelRef = useRef<HTMLDivElement>(null);
+  /** Ref to the custom-layout container, used for column/row drag calculations. */
+  const customLayoutContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -215,6 +246,49 @@ export default function App() {
       } else if (panel === 'chat-scratch') {
         const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + delta));
         setChatWidth(newChatWidth);
+      } else if (panel === 'chat-scratch-height') {
+        const dy = e.clientY - startY;
+        const panelH = rightPanelRef.current?.clientHeight ?? 800;
+        setChatPanelHeight(Math.max(120, Math.min(panelH - 120, startWidth + dy)));
+      } else if (panel.startsWith('custom-col-')) {
+        const colIdx = parseInt(panel.split('-')[2]);
+        const containerW = customLayoutContainerRef.current?.clientWidth ?? 1000;
+        const dFrac = delta / containerW;
+        setCustomLayout(prev => {
+          const cols = [...prev.columns];
+          const total = cols[colIdx].widthFraction + cols[colIdx + 1].widthFraction;
+          const clamped = Math.max(0.1, Math.min(total - 0.1, startWidth + dFrac));
+          return {
+            ...prev,
+            columns: cols.map((col, i) =>
+              i === colIdx ? { ...col, widthFraction: clamped }
+              : i === colIdx + 1 ? { ...col, widthFraction: total - clamped }
+              : col
+            ),
+          };
+        });
+      } else if (panel.startsWith('custom-row-')) {
+        const parts = panel.split('-');
+        const colIdx = parseInt(parts[2]);
+        const rowIdx = parseInt(parts[3]);
+        const containerH = customLayoutContainerRef.current?.clientHeight ?? window.innerHeight;
+        const dy = e.clientY - startY;
+        const dFrac = dy / containerH;
+        setCustomLayout(prev => {
+          const cols = [...prev.columns];
+          const panels = [...cols[colIdx].panels];
+          const total = panels[rowIdx].heightFraction + panels[rowIdx + 1].heightFraction;
+          const clamped = Math.max(0.1, Math.min(total - 0.1, startWidth + dFrac));
+          const newPanels = panels.map((p, i) =>
+            i === rowIdx ? { ...p, heightFraction: clamped }
+            : i === rowIdx + 1 ? { ...p, heightFraction: total - clamped }
+            : p
+          );
+          return {
+            ...prev,
+            columns: cols.map((col, i) => i === colIdx ? { ...col, panels: newPanels } : col),
+          };
+        });
       }
     };
     const onMouseUp = () => {
@@ -247,7 +321,9 @@ export default function App() {
     sessionStorage.setItem('layout_chatFirst', String(chatFirst));
     sessionStorage.setItem('layout_rightPanelWidth', String(rightPanelWidth));
     rightPanelWidthRef.current = rightPanelWidth;
-  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight, terminalSide, chatFirst, rightPanelWidth]);
+    sessionStorage.setItem('layout_chatPanelHeight', String(chatPanelHeight));
+    sessionStorage.setItem('layout_customLayout', JSON.stringify(customLayout));
+  }, [terminalWidth, chatWidth, scratchWidth, terminalCollapsed, chatCollapsed, scratchCollapsed, scratchPinned, layoutPreset, terminalHeight, terminalSide, chatFirst, rightPanelWidth, chatPanelHeight, customLayout]);
 
   // Keyboard-first Scratch Pad access (Ctrl/Cmd + . to toggle, Ctrl/Cmd + Shift + K to focus)
   useEffect(() => {
@@ -867,7 +943,7 @@ export default function App() {
 
   // Helper: start a panel drag
   const startDrag = (
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch',
+    panel: string,
     currentSize: number
   ) => (e: { preventDefault: () => void; clientX: number; clientY: number }) => {
     e.preventDefault();
@@ -877,7 +953,7 @@ export default function App() {
   };
 
   const startTouchDrag = (
-    panel: 'terminal' | 'chat' | 'scratch' | 'terminal-height' | 'right-panel' | 'chat-scratch',
+    panel: string,
     currentSize: number
   ) => (e: React.TouchEvent) => {
     e.preventDefault();
@@ -908,6 +984,47 @@ export default function App() {
       } else if (p === 'chat-scratch') {
         const newChatWidth = Math.max(180, Math.min(rightPanelWidthRef.current - 180, startWidth + dx));
         setChatWidth(newChatWidth);
+      } else if (p === 'chat-scratch-height') {
+        const panelH = rightPanelRef.current?.clientHeight ?? 800;
+        setChatPanelHeight(Math.max(120, Math.min(panelH - 120, startWidth + dy)));
+      } else if (p.startsWith('custom-col-')) {
+        const colIdx = parseInt(p.split('-')[2]);
+        const containerW = customLayoutContainerRef.current?.clientWidth ?? 1000;
+        const dFrac = dx / containerW;
+        setCustomLayout(prev => {
+          const cols = [...prev.columns];
+          const total = cols[colIdx].widthFraction + cols[colIdx + 1].widthFraction;
+          const clamped = Math.max(0.1, Math.min(total - 0.1, startWidth + dFrac));
+          return {
+            ...prev,
+            columns: cols.map((col, i) =>
+              i === colIdx ? { ...col, widthFraction: clamped }
+              : i === colIdx + 1 ? { ...col, widthFraction: total - clamped }
+              : col
+            ),
+          };
+        });
+      } else if (p.startsWith('custom-row-')) {
+        const parts = p.split('-');
+        const colIdx = parseInt(parts[2]);
+        const rowIdx = parseInt(parts[3]);
+        const containerH = customLayoutContainerRef.current?.clientHeight ?? window.innerHeight;
+        const dFrac = dy / containerH;
+        setCustomLayout(prev => {
+          const cols = [...prev.columns];
+          const panels = [...cols[colIdx].panels];
+          const total = panels[rowIdx].heightFraction + panels[rowIdx + 1].heightFraction;
+          const clamped = Math.max(0.1, Math.min(total - 0.1, startWidth + dFrac));
+          const newPanels = panels.map((p2, i) =>
+            i === rowIdx ? { ...p2, heightFraction: clamped }
+            : i === rowIdx + 1 ? { ...p2, heightFraction: total - clamped }
+            : p2
+          );
+          return {
+            ...prev,
+            columns: cols.map((col, i) => i === colIdx ? { ...col, panels: newPanels } : col),
+          };
+        });
       }
     };
     const onEnd = () => {
@@ -924,6 +1041,8 @@ export default function App() {
   // Collapsed tab shared style
   const collapsedTab = 'flex flex-col items-center border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden';
   const collapsedLabel = 'text-zinc-700 text-[10px] font-medium uppercase tracking-wider mt-1';
+  // Horizontal collapsed bar (for vertical layout panels)
+  const collapsedHBar = 'flex flex-row items-center justify-between border-white/10 bg-black/40 backdrop-blur-sm shrink-0 overflow-hidden h-8 px-3 gap-2';
 
   return (
     <div 
@@ -1134,7 +1253,7 @@ export default function App() {
             <button
               onClick={() => setLayoutPreset('standard')}
               className={`p-1.5 rounded transition-colors ${layoutPreset === 'standard' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
-              title="Standard Layout — Terminal · Preview · Chat"
+              title="Standard Layout — Terminal · Preview · Chat + Scratch"
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
             </button>
@@ -1151,6 +1270,13 @@ export default function App() {
               title="Zen Focus — Scratch Pad · Preview only"
             >
               <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setLayoutPreset('custom')}
+              className={`p-1.5 rounded transition-colors ${layoutPreset === 'custom' ? 'bg-violet-500/20 text-violet-300' : 'text-zinc-500 hover:text-zinc-300'}`}
+              title="Custom Layout — Freely arrange &amp; resize all panels"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -1640,6 +1766,283 @@ export default function App() {
           </div>
         </main>
 
+      ) : layoutPreset === 'custom' ? (
+
+        /* ── Custom layout ────────────────────────────────────────────────── */
+        <main className="flex-1 flex overflow-hidden min-h-0 relative" ref={customLayoutContainerRef}>
+          {customLayout.columns.map((col, colIdx) => {
+            const visiblePanels = col.panels.filter(p => !p.hidden);
+            const colHidden = visiblePanels.length === 0;
+            if (colHidden) return null;
+            return (
+              <React.Fragment key={colIdx}>
+                {/* Column */}
+                <div
+                  style={{ flex: col.widthFraction }}
+                  className="flex flex-col overflow-hidden min-w-0 min-h-0 border-r border-white/8 last:border-r-0"
+                >
+                  {visiblePanels.map((entry, vIdx) => {
+                    const isLast = vIdx === visiblePanels.length - 1;
+                    const realIdx = col.panels.indexOf(entry);
+                    const panelEl = (() => {
+                      switch (entry.panel) {
+                        case 'terminal':
+                          return (
+                            <div key="terminal" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0">
+                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                                <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                                  <TerminalIcon className="w-3.5 h-3.5" />Terminal
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                  {layoutEditMode && (
+                                    <>
+                                      {colIdx > 0 && (
+                                        <button
+                                          onClick={() => setCustomLayout(prev => {
+                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+                                            cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'terminal');
+                                            cols[colIdx - 1].panels.push({ ...entry });
+                                            return { ...prev, columns: cols };
+                                          })}
+                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move left"
+                                        ><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                      )}
+                                      {colIdx < customLayout.columns.length - 1 && (
+                                        <button
+                                          onClick={() => setCustomLayout(prev => {
+                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+                                            cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'terminal');
+                                            cols[colIdx + 1].panels.unshift({ ...entry });
+                                            return { ...prev, columns: cols };
+                                          })}
+                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move right"
+                                        ><ChevronRight className="w-3.5 h-3.5" /></button>
+                                      )}
+                                      {realIdx > 0 && (
+                                        <button
+                                          onClick={() => setCustomLayout(prev => {
+                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+                                            const ps = cols[colIdx].panels;
+                                            [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]];
+                                            return { ...prev, columns: cols };
+                                          })}
+                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move up"
+                                        ><ChevronUp className="w-3.5 h-3.5" /></button>
+                                      )}
+                                      {realIdx < col.panels.length - 1 && (
+                                        <button
+                                          onClick={() => setCustomLayout(prev => {
+                                            const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+                                            const ps = cols[colIdx].panels;
+                                            [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]];
+                                            return { ...prev, columns: cols };
+                                          })}
+                                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move down"
+                                        ><ChevronDown className="w-3.5 h-3.5" /></button>
+                                      )}
+                                      <button
+                                        onClick={() => setCustomLayout(prev => ({
+                                          ...prev,
+                                          columns: prev.columns.map((c, i) => i !== colIdx ? c : {
+                                            ...c,
+                                            panels: c.panels.map(p => p.panel === 'terminal' ? { ...p, hidden: true } : p)
+                                          })
+                                        }))}
+                                        className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors" title="Hide terminal"
+                                      ><EyeOff className="w-3.5 h-3.5" /></button>
+                                    </>
+                                  )}
+                                  <button onClick={() => setTerminalCollapsed(c => !c)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title={terminalCollapsed ? 'Expand terminal' : 'Collapse terminal'}>
+                                    {terminalCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+                              {!terminalCollapsed && (
+                                <div className="flex-1 p-2 overflow-hidden min-h-0">
+                                  <TerminalComponent onTerminalReady={handleTerminalReady} onTerminalData={handleTerminalData} statusMessage={recoveryMessage} />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        case 'preview':
+                          return (
+                            <div key="preview" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0 bg-[#09090b]">
+                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+                                <div className="flex items-center gap-2">
+                                  {layoutEditMode && (
+                                    <>
+                                      {colIdx > 0 && (
+                                        <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'preview'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                      )}
+                                      {colIdx < customLayout.columns.length - 1 && (
+                                        <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'preview'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
+                                      )}
+                                    </>
+                                  )}
+                                  <Globe className="w-3.5 h-3.5" />Preview
+                                </div>
+                                {previewBaseUrl && (
+                                  <div className="flex items-center gap-2 flex-1 max-w-md mx-4 bg-black/50 rounded-lg px-3 py-1.5 border border-white/8 normal-case tracking-normal text-sm shadow-inner backdrop-blur-sm">
+                                    <button onClick={() => setIframeKey(k => k + 1)} className="text-zinc-400 hover:text-white transition-colors"><RefreshCw className="w-3.5 h-3.5" /></button>
+                                    <div className="w-px h-4 bg-white/10 mx-1" />
+                                    <span className="text-zinc-500 text-xs truncate max-w-[150px]">{previewBaseUrl}</span>
+                                    <input type="text" value={browserPath} onChange={e => setBrowserPath(e.target.value)} onKeyDown={e => e.key === 'Enter' && setIframeKey(k => k + 1)} className="bg-transparent border-none outline-none text-xs text-white flex-1 min-w-[50px]" placeholder="/" />
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1 bg-black/50 rounded-lg p-0.5 border border-white/8 backdrop-blur-sm">
+                                  <button onClick={() => setPreviewMode('mobile')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Mobile View"><Smartphone className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => setPreviewMode('tablet')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Tablet View"><Tablet className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => setPreviewMode('desktop')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Desktop View"><Monitor className="w-3.5 h-3.5" /></button>
+                                </div>
+                              </div>
+                              <div className="flex-1 relative bg-[#09090b] overflow-hidden">
+                                {previewUrl ? (
+                                  <div className={`w-full h-full ${previewMode !== 'desktop' ? 'overflow-auto flex justify-center py-8' : ''}`}>
+                                    <div className={`transition-all duration-300 ease-in-out bg-white ${previewMode === 'mobile' ? 'w-[375px] h-[812px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' : previewMode === 'tablet' ? 'w-[768px] h-[1024px] border-[12px] border-zinc-900 rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex-shrink-0' : 'w-full h-full'}`}>
+                                      <iframe key={iframeKey} src={`${previewBaseUrl}${browserPath.startsWith('/') ? browserPath : '/' + browserPath}`} className="w-full h-full border-none" title="Preview" allow="cross-origin-isolated" referrerPolicy="no-referrer" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-modals" />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500">
+                                    {status === 'idle' ? (<><div className="w-20 h-20 mb-6 rounded-2xl bg-white/4 border border-white/8 flex items-center justify-center shadow-[0_0_40px_rgba(0,0,0,0.4)] backdrop-blur-sm"><Upload className="w-8 h-8 text-zinc-500" /></div><p className="text-lg tracking-wide">Drop in a zip file to get the preview going</p></>) : status === 'error' ? (<><div className="w-20 h-20 mb-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shadow-2xl"><AlertCircle className="w-8 h-8 text-rose-400" /></div><p className="text-rose-400 max-w-md text-center">{errorMsg}</p></>) : (<><div className="w-20 h-20 mb-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-2xl"><RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" /></div><p className="text-lg tracking-wide text-indigo-200/70">Preparing environment…</p></>)}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        case 'chat':
+                          return (
+                            <div key="chat" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0">
+                              {layoutEditMode && (
+                                <div className="flex items-center gap-0.5 px-2 py-1 border-b border-violet-500/20 bg-violet-500/5 shrink-0">
+                                  {colIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'chat'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
+                                  {colIdx < customLayout.columns.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'chat'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
+                                  {realIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
+                                  {realIdx < col.panels.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
+                                  <button onClick={() => setCustomLayout(prev => ({ ...prev, columns: prev.columns.map((c, i) => i !== colIdx ? c : { ...c, panels: c.panels.map(p => p.panel === 'chat' ? { ...p, hidden: true } : p) }) }))} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide"><EyeOff className="w-3.5 h-3.5" /></button>
+                                  <span className="ml-auto text-[10px] text-violet-400/60 uppercase tracking-wider">AI Chat</span>
+                                </div>
+                              )}
+                              <ChatPanel
+                                resetKey={chatKey}
+                                settings={settings}
+                                getProjectContext={getProjectContext}
+                                troubleshootRequest={troubleshootRequest}
+                                onTroubleshootHandled={() => setTroubleshootRequest(null)}
+                                onCollapse={() => setCustomLayout(prev => ({
+                                  ...prev,
+                                  columns: prev.columns.map((c, i) => i !== colIdx ? c : {
+                                    ...c,
+                                    panels: c.panels.map(p => p.panel === 'chat' ? { ...p, hidden: true } : p)
+                                  })
+                                }))}
+                                onRunDiagnosticCommand={handleRunDiagnosticCommand}
+                                onExportArtifact={handleExportArtifact}
+                                stagedNotes={stagedNotes}
+                                onClearStagedNotes={handleClearStagedNotes}
+                                onRequestAIReview={() => {}}
+                              />
+                            </div>
+                          );
+                        case 'scratch':
+                          return (
+                            <div key="scratch" style={{ flex: entry.heightFraction }} className="flex flex-col bg-black/40 backdrop-blur-xl overflow-hidden min-h-0">
+                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                                <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                                  <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                  {layoutEditMode && (
+                                    <>
+                                      {colIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'scratch'); cols[colIdx - 1].panels.push({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
+                                      {colIdx < customLayout.columns.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); cols[colIdx].panels = cols[colIdx].panels.filter(p => p.panel !== 'scratch'); cols[colIdx + 1].panels.unshift({ ...entry }); return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
+                                      {realIdx > 0 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx - 1], ps[realIdx]] = [ps[realIdx], ps[realIdx - 1]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
+                                      {realIdx < col.panels.length - 1 && <button onClick={() => setCustomLayout(prev => { const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] })); const ps = cols[colIdx].panels; [ps[realIdx], ps[realIdx + 1]] = [ps[realIdx + 1], ps[realIdx]]; return { ...prev, columns: cols }; })} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
+                                      <button onClick={() => setCustomLayout(prev => ({ ...prev, columns: prev.columns.map((c, i) => i !== colIdx ? c : { ...c, panels: c.panels.map(p => p.panel === 'scratch' ? { ...p, hidden: true } : p) }) }))} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide scratch pad"><EyeOff className="w-3.5 h-3.5" /></button>
+                                    </>
+                                  )}
+                                  <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
+                                    {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                                  </button>
+                                </div>
+                              </div>
+                              <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
+                            </div>
+                          );
+                        default:
+                          return null;
+                      }
+                    })();
+                    return (
+                      <React.Fragment key={entry.panel}>
+                        {panelEl}
+                        {/* Row drag divider within column */}
+                        {!isLast && (() => {
+                          return (
+                            <div
+                              className="resize-divider h-1 shrink-0 bg-white/4 hover:bg-violet-500/40 active:bg-violet-500/60 cursor-row-resize transition-all duration-150 flex items-center justify-center group hover:h-1.5"
+                              onMouseDown={startDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
+                              onTouchStart={startTouchDrag(`custom-row-${colIdx}-${realIdx}`, entry.heightFraction)}
+                            >
+                              <GripHorizontal className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          );
+                        })()}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+                {/* Column drag divider */}
+                {colIdx < customLayout.columns.filter((c) => c.panels.some(p => !p.hidden)).length - 1 && (
+                  <div
+                    className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-violet-500/50 active:bg-violet-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
+                    onMouseDown={startDrag(`custom-col-${colIdx}`, col.widthFraction)}
+                    onTouchStart={startTouchDrag(`custom-col-${colIdx}`, col.widthFraction)}
+                  >
+                    <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                )}
+                {/* Show hidden panels button in layout edit mode */}
+                {layoutEditMode && col.panels.some(p => p.hidden) && (
+                  <div className="absolute bottom-2 right-2 flex flex-col gap-1">
+                    {col.panels.filter(p => p.hidden).map(hp => (
+                      <button
+                        key={hp.panel}
+                        onClick={() => setCustomLayout(prev => ({
+                          ...prev,
+                          columns: prev.columns.map((c, i) => i !== colIdx ? c : {
+                            ...c,
+                            panels: c.panels.map(p => p.panel === hp.panel ? { ...p, hidden: false } : p)
+                          })
+                        }))}
+                        className="flex items-center gap-1 px-2 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded border border-violet-500/30 transition-colors"
+                        title={`Show ${hp.panel}`}
+                      >
+                        <Eye className="w-3 h-3" /> {hp.panel}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </React.Fragment>
+            );
+          })}
+          {/* Reset custom layout button in edit mode */}
+          {layoutEditMode && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
+              <button
+                onClick={() => setCustomLayout(DEFAULT_CUSTOM_LAYOUT)}
+                className="px-3 py-1.5 text-xs bg-black/60 hover:bg-black/80 text-zinc-400 hover:text-white border border-white/10 rounded-md backdrop-blur-sm transition-colors"
+                title="Reset custom layout to default"
+              >
+                Reset Layout
+              </button>
+            </div>
+          )}
+        </main>
+
       ) : (
 
         /* ── Standard layout (default) ───────────────────────────────────── */
@@ -1812,7 +2215,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* ── Right panel: Chat + Scratch side-by-side ────────────────────── */}
+          {/* ── Right panel: Chat + Scratch stacked vertically ───────────────── */}
           {!focusMode && (
             <>
               {/* Drag divider: Preview ↔ Right Panel */}
@@ -1826,18 +2229,19 @@ export default function App() {
                 </div>
               )}
 
-              {/* Right panel container */}
+              {/* Right panel container — vertical column */}
               <div
+                ref={rightPanelRef}
                 style={{ width: (chatCollapsed && scratchCollapsed) ? 16 : rightPanelWidth }}
-                className={`flex flex-row shrink-0 overflow-hidden ${layoutEditMode ? 'ring-1 ring-violet-500/30' : ''}`}
+                className={`flex flex-col shrink-0 overflow-hidden ${layoutEditMode ? 'ring-1 ring-violet-500/30' : ''}`}
               >
                 {chatFirst ? (
                   <>
-                    {/* Chat panel */}
+                    {/* Chat Panel — top */}
                     {!chatCollapsed ? (
                       <div
-                        style={{ width: scratchCollapsed ? rightPanelWidth : chatWidth, flex: scratchCollapsed ? '1 1 auto' : undefined }}
-                        className="flex flex-col shrink-0 overflow-hidden border-r border-white/8 animate-panel-in-right"
+                        style={{ height: scratchCollapsed ? undefined : chatPanelHeight, flex: scratchCollapsed ? '1 1 auto' : undefined }}
+                        className="flex flex-col shrink-0 overflow-hidden border-b border-white/8 animate-panel-in-right"
                       >
                         <ChatPanel
                           resetKey={chatKey}
@@ -1854,37 +2258,42 @@ export default function App() {
                         />
                       </div>
                     ) : (
-                      <div className={`${collapsedTab} w-8 border-r border-white/8 py-3 gap-2`}>
+                      <div className={`${collapsedHBar} border-b border-white/8`}>
                         <button onClick={() => setChatCollapsed(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title="Expand chat">
-                          <ChevronRight className="w-3.5 h-3.5" />
+                          <ChevronDown className="w-3.5 h-3.5" />
                         </button>
-                        <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Chat</span>
+                        <span className="text-zinc-700 text-[10px] font-medium uppercase tracking-wider">Chat</span>
+                        {layoutEditMode && (
+                          <button onClick={() => setChatFirst(false)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors ml-auto" title="Move Chat below Scratch Pad">
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
 
-                    {/* Internal divider: Chat ↔ Scratch */}
+                    {/* Horizontal drag divider: Chat ↔ Scratch */}
                     {!chatCollapsed && !scratchCollapsed && (
                       <div
-                        className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
-                        onMouseDown={startDrag('chat-scratch', chatWidth)}
-                        onTouchStart={startTouchDrag('chat-scratch', chatWidth)}
+                        className="resize-divider h-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-row-resize transition-all duration-150 flex items-center justify-center group hover:h-1.5"
+                        onMouseDown={startDrag('chat-scratch-height', chatPanelHeight)}
+                        onTouchStart={startTouchDrag('chat-scratch-height', chatPanelHeight)}
                       >
-                        <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <GripHorizontal className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     )}
 
-                    {/* Scratch Pad */}
+                    {/* Scratch Pad — bottom */}
                     <AnimatePresence mode="wait">
                       {!scratchCollapsed ? (
                         <motion.div
                           key="scratch-open"
-                          initial={{ opacity: 0, x: 24 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 24 }}
+                          initial={{ opacity: 0, y: 16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 16 }}
                           transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                           data-tour="scratch"
-                          style={{ flex: chatCollapsed ? '1 1 auto' : undefined, width: chatCollapsed ? undefined : rightPanelWidth - chatWidth - 4 }}
-                          className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+                          style={{ flex: '1 1 auto' }}
+                          className="flex flex-col bg-black/40 backdrop-blur-xl overflow-hidden min-h-0"
                         >
                           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
                             <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -1895,13 +2304,13 @@ export default function App() {
                                 <button
                                   onClick={() => setChatFirst(false)}
                                   className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                                  title="Move Scratch Pad to left of Chat"
+                                  title="Move Scratch Pad above Chat"
                                 >
-                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                  <ChevronUp className="w-3.5 h-3.5" />
                                 </button>
                               )}
                               <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
-                                <ChevronRight className="w-3.5 h-3.5" />
+                                <ChevronDown className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
                                 {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
@@ -1913,34 +2322,34 @@ export default function App() {
                       ) : (
                         <motion.div
                           key="scratch-collapsed"
-                          initial={{ opacity: 0, x: 8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 8 }}
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
                           transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-                          className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
+                          className={`${collapsedHBar} border-t border-white/8`}
                         >
                           <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
-                            <ChevronLeft className="w-3.5 h-3.5" />
+                            <ChevronUp className="w-3.5 h-3.5" />
                           </button>
-                          <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>Notes</span>
+                          <span className="text-amber-900/60 text-[10px] font-medium uppercase tracking-wider">Notes</span>
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </>
                 ) : (
                   <>
-                    {/* Scratch Pad first */}
+                    {/* Scratch Pad — top (when chatFirst=false) */}
                     <AnimatePresence mode="wait">
                       {!scratchCollapsed ? (
                         <motion.div
-                          key="scratch-open-l"
-                          initial={{ opacity: 0, x: -24 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -24 }}
+                          key="scratch-open-top"
+                          initial={{ opacity: 0, y: -16 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -16 }}
                           transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                           data-tour="scratch"
-                          style={{ flex: chatCollapsed ? '1 1 auto' : undefined, width: chatCollapsed ? undefined : rightPanelWidth - chatWidth - 4 }}
-                          className="flex flex-col border-r border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
+                          style={{ height: chatCollapsed ? undefined : chatPanelHeight, flex: chatCollapsed ? '1 1 auto' : undefined }}
+                          className="flex flex-col border-b border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
                         >
                           <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
                             <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -1951,13 +2360,13 @@ export default function App() {
                                 <button
                                   onClick={() => setChatFirst(true)}
                                   className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                                  title="Move Scratch Pad to right of Chat"
+                                  title="Move Scratch Pad below Chat"
                                 >
-                                  <ChevronRight className="w-3.5 h-3.5" />
+                                  <ChevronDown className="w-3.5 h-3.5" />
                                 </button>
                               )}
                               <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
-                                <ChevronLeft className="w-3.5 h-3.5" />
+                                <ChevronDown className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
                                 {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
@@ -1968,37 +2377,37 @@ export default function App() {
                         </motion.div>
                       ) : (
                         <motion.div
-                          key="scratch-collapsed-l"
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -8 }}
+                          key="scratch-collapsed-top"
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
                           transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-                          className={`${collapsedTab} w-8 border-r border-white/8 py-3 gap-2`}
+                          className={`${collapsedHBar} border-b border-white/8`}
                         >
                           <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
-                            <ChevronRight className="w-3.5 h-3.5" />
+                            <ChevronDown className="w-3.5 h-3.5" />
                           </button>
-                          <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>Notes</span>
+                          <span className="text-amber-900/60 text-[10px] font-medium uppercase tracking-wider">Notes</span>
                         </motion.div>
                       )}
                     </AnimatePresence>
 
-                    {/* Internal divider: Scratch ↔ Chat */}
+                    {/* Horizontal drag divider: Scratch ↔ Chat */}
                     {!chatCollapsed && !scratchCollapsed && (
                       <div
-                        className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
-                        onMouseDown={startDrag('chat-scratch', chatWidth)}
-                        onTouchStart={startTouchDrag('chat-scratch', chatWidth)}
+                        className="resize-divider h-1 shrink-0 bg-white/4 hover:bg-amber-500/40 active:bg-amber-500/60 cursor-row-resize transition-all duration-150 flex items-center justify-center group hover:h-1.5"
+                        onMouseDown={startDrag('chat-scratch-height', chatPanelHeight)}
+                        onTouchStart={startTouchDrag('chat-scratch-height', chatPanelHeight)}
                       >
-                        <GripVertical className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <GripHorizontal className="w-2.5 h-2.5 text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     )}
 
-                    {/* Chat panel */}
+                    {/* Chat Panel — bottom (when chatFirst=false) */}
                     {!chatCollapsed ? (
                       <div
-                        style={{ width: scratchCollapsed ? rightPanelWidth : chatWidth, flex: scratchCollapsed ? '1 1 auto' : undefined }}
-                        className="flex flex-col shrink-0 overflow-hidden border-l border-white/8 animate-panel-in-right"
+                        style={{ flex: '1 1 auto' }}
+                        className="flex flex-col overflow-hidden border-t border-white/8 animate-panel-in-right"
                       >
                         <ChatPanel
                           resetKey={chatKey}
@@ -2015,11 +2424,16 @@ export default function App() {
                         />
                       </div>
                     ) : (
-                      <div className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}>
+                      <div className={`${collapsedHBar} border-t border-white/8`}>
                         <button onClick={() => setChatCollapsed(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title="Expand chat">
-                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <ChevronUp className="w-3.5 h-3.5" />
                         </button>
-                        <span className={collapsedLabel} style={{ writingMode: 'vertical-rl' }}>Chat</span>
+                        <span className="text-zinc-700 text-[10px] font-medium uppercase tracking-wider">Chat</span>
+                        {layoutEditMode && (
+                          <button onClick={() => setChatFirst(true)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors ml-auto" title="Move Chat above Scratch Pad">
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </>
