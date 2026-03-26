@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, ChangeEvent } from 're
 import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
-import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, GripHorizontal, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, Move, LayoutGrid } from 'lucide-react';
+import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, GripHorizontal, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, Move, LayoutGrid, Minus, Plus } from 'lucide-react';
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
@@ -32,6 +32,7 @@ type PanelId = 'terminal' | 'preview' | 'chat' | 'scratch';
 type CustomPanelEntry = { panel: PanelId; heightFraction: number; hidden: boolean };
 type CustomColumnConfig = { widthFraction: number; panels: CustomPanelEntry[] };
 type CustomLayoutConfig = { columns: CustomColumnConfig[] };
+type CustomDragData = { panel: PanelId; fromColIdx: number };
 
 const DEFAULT_CUSTOM_LAYOUT: CustomLayoutConfig = {
   columns: [
@@ -161,6 +162,7 @@ export default function App() {
     const v = sessionStorage.getItem('layout_customLayout');
     try { return v ? JSON.parse(v) : DEFAULT_CUSTOM_LAYOUT; } catch { return DEFAULT_CUSTOM_LAYOUT; }
   });
+  const [customDraggingPanel, setCustomDraggingPanel] = useState<CustomDragData | null>(null);
   /** Local-only scratch pad content (never sent to AI). */
   const [scratchPadContent, setScratchPadContent] = useState('');
   /** Scratch Pad notes staged by the user to be prepended to the next AI message. */
@@ -1077,6 +1079,42 @@ export default function App() {
       })
     }));
   };
+  /** Move a panel into a target column with optional insertion index (default append). */
+  const dropPanelToColumn = (panel: PanelId, fromColIdx: number, toColIdx: number, toIndex?: number) => {
+    if (fromColIdx === toColIdx && toIndex === undefined) return;
+    setCustomLayout(prev => {
+      const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+      const sourceIdx = cols[fromColIdx].panels.findIndex(p => p.panel === panel);
+      if (sourceIdx === -1) return prev;
+      const [moved] = cols[fromColIdx].panels.splice(sourceIdx, 1);
+      const insertAt = toIndex ?? cols[toColIdx].panels.length;
+      cols[toColIdx].panels.splice(insertAt, 0, { ...moved, hidden: false });
+      return { ...prev, columns: cols };
+    });
+  };
+  /** Set exact custom layout column count while preserving current panel placement as much as possible. */
+  const setCustomColumnCount = (count: number) => {
+    const nextCount = Math.max(1, Math.min(4, Math.floor(count)));
+    setCustomLayout(prev => {
+      if (nextCount === prev.columns.length) return prev;
+      const cols = prev.columns.map(c => ({ ...c, panels: [...c.panels] }));
+      if (nextCount > cols.length) {
+        while (cols.length < nextCount) {
+          const widestIdx = cols.reduce((best, c, i, arr) => c.widthFraction > arr[best].widthFraction ? i : best, 0);
+          const splitWidth = Math.max(0.15, cols[widestIdx].widthFraction / 2);
+          cols[widestIdx] = { ...cols[widestIdx], widthFraction: splitWidth };
+          cols.splice(widestIdx + 1, 0, { widthFraction: splitWidth, panels: [] });
+        }
+      } else {
+        while (cols.length > nextCount) {
+          const removed = cols.pop();
+          if (removed && cols.length > 0) cols[cols.length - 1].panels.push(...removed.panels);
+        }
+      }
+      const evenWidth = 1 / cols.length;
+      return { ...prev, columns: cols.map(c => ({ ...c, widthFraction: evenWidth })) };
+    });
+  };
 
   return (
     <div 
@@ -1273,14 +1311,16 @@ export default function App() {
             {focusMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
 
-          {/* Layout Edit Mode toggle */}
-          <button
-            onClick={() => setLayoutEditMode(m => !m)}
-            className={`p-2 rounded-lg transition-colors ${layoutEditMode ? 'text-violet-400 bg-violet-500/10 hover:bg-violet-500/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-            title={layoutEditMode ? 'Exit Layout Edit Mode' : 'Edit Layout — rearrange & resize panels'}
-          >
-            <Move className="w-4 h-4" />
-          </button>
+          {/* Layout Edit Mode toggle (non-custom layouts only) */}
+          {layoutPreset !== 'custom' && (
+            <button
+              onClick={() => setLayoutEditMode(m => !m)}
+              className={`p-2 rounded-lg transition-colors ${layoutEditMode ? 'text-violet-400 bg-violet-500/10 hover:bg-violet-500/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
+              title={layoutEditMode ? 'Exit Layout Edit Mode' : 'Edit Layout — rearrange panels'}
+            >
+              <Move className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Layout Switcher */}
           <div className="flex items-center gap-0.5 bg-black/40 rounded-lg p-0.5 border border-white/8">
@@ -1804,18 +1844,59 @@ export default function App() {
 
         /* ── Custom layout ────────────────────────────────────────────────── */
         <main className="flex-1 flex overflow-hidden min-h-0 relative" ref={customLayoutContainerRef}>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/65 border border-white/10 backdrop-blur-md">
+            <span className="text-[11px] uppercase tracking-wider text-zinc-500">Columns</span>
+            <button
+              onClick={() => setCustomColumnCount(customLayout.columns.length - 1)}
+              disabled={customLayout.columns.length <= 1}
+              className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Remove a column"
+            >
+              <Minus className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-xs text-zinc-300 tabular-nums min-w-4 text-center">{customLayout.columns.length}</span>
+            <button
+              onClick={() => setCustomColumnCount(customLayout.columns.length + 1)}
+              disabled={customLayout.columns.length >= 4}
+              className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Add a column"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setCustomLayout(DEFAULT_CUSTOM_LAYOUT)}
+              className="ml-2 px-2 py-1 text-[11px] text-zinc-400 hover:text-white hover:bg-white/10 rounded border border-white/10"
+              title="Reset custom layout"
+            >
+              Reset
+            </button>
+          </div>
           {customLayout.columns.map((col, colIdx) => {
             const visiblePanels = col.panels.filter(p => !p.hidden);
-            const colHidden = visiblePanels.length === 0;
-            if (colHidden) return null;
             return (
               <React.Fragment key={colIdx}>
                 {/* Column */}
                 <div
                   style={{ flex: col.widthFraction }}
                   className="relative flex flex-col overflow-hidden min-w-0 min-h-0 border-r border-white/8 last:border-r-0"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const payload = e.dataTransfer.getData('application/json');
+                    let data: CustomDragData | null = customDraggingPanel;
+                    if (payload) {
+                      try { data = JSON.parse(payload) as CustomDragData; } catch {}
+                    }
+                    if (!data) return;
+                    dropPanelToColumn(data.panel, data.fromColIdx, colIdx);
+                    setCustomDraggingPanel(null);
+                  }}
                 >
-                  {visiblePanels.map((entry, vIdx) => {
+                  {visiblePanels.length === 0 ? (
+                    <div className="flex-1 m-2 rounded-lg border border-dashed border-violet-500/40 bg-violet-500/5 text-violet-300/70 text-xs flex items-center justify-center min-h-0">
+                      Drop a panel here
+                    </div>
+                  ) : visiblePanels.map((entry, vIdx) => {
                     const isLast = vIdx === visiblePanels.length - 1;
                     const realIdx = col.panels.indexOf(entry);
                     const panelEl = (() => {
@@ -1823,13 +1904,21 @@ export default function App() {
                         case 'terminal':
                           return (
                             <div key="terminal" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0">
-                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                              <div
+                                className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0 cursor-move"
+                                draggable
+                                onDragStart={(e) => {
+                                  const data: CustomDragData = { panel: 'terminal', fromColIdx: colIdx };
+                                  e.dataTransfer.setData('application/json', JSON.stringify(data));
+                                  setCustomDraggingPanel(data);
+                                }}
+                                onDragEnd={() => setCustomDraggingPanel(null)}
+                              >
                                 <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
                                   <TerminalIcon className="w-3.5 h-3.5" />Terminal
                                 </div>
                                 <div className="flex items-center gap-0.5">
-                                  {layoutEditMode && (
-                                    <>
+                                  <>
                                       {colIdx > 0 && (
                                         <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
                                       )}
@@ -1843,8 +1932,7 @@ export default function App() {
                                         <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300 transition-colors" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>
                                       )}
                                       <button onClick={() => setPanelHidden(colIdx, 'terminal', true)} className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors" title="Hide terminal"><EyeOff className="w-3.5 h-3.5" /></button>
-                                    </>
-                                  )}
+                                  </>
                                   <button onClick={() => setTerminalCollapsed(c => !c)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors" title={terminalCollapsed ? 'Expand terminal' : 'Collapse terminal'}>
                                     {terminalCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
                                   </button>
@@ -1860,17 +1948,22 @@ export default function App() {
                         case 'preview':
                           return (
                             <div key="preview" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0 bg-[#09090b]">
-                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md">
+                              <div
+                                className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/3 text-xs font-medium text-zinc-400 uppercase tracking-wider shrink-0 backdrop-blur-md cursor-move"
+                                draggable
+                                onDragStart={(e) => {
+                                  const data: CustomDragData = { panel: 'preview', fromColIdx: colIdx };
+                                  e.dataTransfer.setData('application/json', JSON.stringify(data));
+                                  setCustomDraggingPanel(data);
+                                }}
+                                onDragEnd={() => setCustomDraggingPanel(null)}
+                              >
                                 <div className="flex items-center gap-2">
-                                  {layoutEditMode && (
-                                    <>
-                                      {colIdx > 0 && (
-                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
-                                      )}
-                                      {colIdx < customLayout.columns.length - 1 && (
-                                        <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
-                                      )}
-                                    </>
+                                  {colIdx > 0 && (
+                                    <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                  )}
+                                  {colIdx < customLayout.columns.length - 1 && (
+                                    <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>
                                   )}
                                   <Globe className="w-3.5 h-3.5" />Preview
                                 </div>
@@ -1886,6 +1979,7 @@ export default function App() {
                                   <button onClick={() => setPreviewMode('mobile')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'mobile' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Mobile View"><Smartphone className="w-3.5 h-3.5" /></button>
                                   <button onClick={() => setPreviewMode('tablet')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'tablet' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Tablet View"><Tablet className="w-3.5 h-3.5" /></button>
                                   <button onClick={() => setPreviewMode('desktop')} className={`p-1.5 rounded-sm transition-colors ${previewMode === 'desktop' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`} title="Desktop View"><Monitor className="w-3.5 h-3.5" /></button>
+                                  <button onClick={() => setPanelHidden(colIdx, 'preview', true)} className="p-1.5 rounded-sm text-zinc-500 hover:text-zinc-300 transition-colors" title="Minimize preview"><EyeOff className="w-3.5 h-3.5" /></button>
                                 </div>
                               </div>
                               <div className="flex-1 relative bg-[#09090b] overflow-hidden">
@@ -1906,8 +2000,16 @@ export default function App() {
                         case 'chat':
                           return (
                             <div key="chat" style={{ flex: entry.heightFraction }} className="flex flex-col overflow-hidden min-h-0">
-                              {layoutEditMode && (
-                                <div className="flex items-center gap-0.5 px-2 py-1 border-b border-violet-500/20 bg-violet-500/5 shrink-0">
+                                <div
+                                  className="flex items-center gap-0.5 px-2 py-1 border-b border-violet-500/20 bg-violet-500/5 shrink-0 cursor-move"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    const data: CustomDragData = { panel: 'chat', fromColIdx: colIdx };
+                                    e.dataTransfer.setData('application/json', JSON.stringify(data));
+                                    setCustomDraggingPanel(data);
+                                  }}
+                                  onDragEnd={() => setCustomDraggingPanel(null)}
+                                >
                                   {colIdx > 0 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
                                   {colIdx < customLayout.columns.length - 1 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
                                   {realIdx > 0 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
@@ -1915,7 +2017,6 @@ export default function App() {
                                   <button onClick={() => setPanelHidden(colIdx, 'chat', true)} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide"><EyeOff className="w-3.5 h-3.5" /></button>
                                   <span className="ml-auto text-[10px] text-violet-400/60 uppercase tracking-wider">AI Chat</span>
                                 </div>
-                              )}
                               <ChatPanel
                                 resetKey={chatKey}
                                 settings={settings}
@@ -1934,26 +2035,27 @@ export default function App() {
                         case 'scratch':
                           return (
                             <div key="scratch" style={{ flex: entry.heightFraction }} className="flex flex-col bg-black/40 backdrop-blur-xl overflow-hidden min-h-0">
-                              <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
+                              <div
+                                className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0 cursor-move"
+                                draggable
+                                onDragStart={(e) => {
+                                  const data: CustomDragData = { panel: 'scratch', fromColIdx: colIdx };
+                                  e.dataTransfer.setData('application/json', JSON.stringify(data));
+                                  setCustomDraggingPanel(data);
+                                }}
+                                onDragEnd={() => setCustomDraggingPanel(null)}
+                              >
                                 <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
                                   <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
                                 </div>
                                 <div className="flex items-center gap-0.5">
-                                  {layoutEditMode && (
-                                    <>
-                                      {colIdx > 0 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
-                                      {colIdx < customLayout.columns.length - 1 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
-                                      {realIdx > 0 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
-                                      {realIdx < col.panels.length - 1 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
-                                      <button onClick={() => setPanelHidden(colIdx, 'scratch', true)} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide scratch pad"><EyeOff className="w-3.5 h-3.5" /></button>
-                                    </>
-                                  )}
-                                  <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
-                                    <ChevronDown className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
-                                    {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                                  </button>
+                                  <>
+                                    {colIdx > 0 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx - 1)} className="p-1 text-violet-400 hover:text-violet-300" title="Move left"><ChevronLeft className="w-3.5 h-3.5" /></button>}
+                                    {colIdx < customLayout.columns.length - 1 && <button onClick={() => movePanelToColumn(entry, colIdx, colIdx + 1, true)} className="p-1 text-violet-400 hover:text-violet-300" title="Move right"><ChevronRight className="w-3.5 h-3.5" /></button>}
+                                    {realIdx > 0 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'up')} className="p-1 text-violet-400 hover:text-violet-300" title="Move up"><ChevronUp className="w-3.5 h-3.5" /></button>}
+                                    {realIdx < col.panels.length - 1 && <button onClick={() => swapPanelInColumn(colIdx, realIdx, 'down')} className="p-1 text-violet-400 hover:text-violet-300" title="Move down"><ChevronDown className="w-3.5 h-3.5" /></button>}
+                                    <button onClick={() => setPanelHidden(colIdx, 'scratch', true)} className="p-1 text-zinc-500 hover:text-zinc-300" title="Hide scratch pad"><EyeOff className="w-3.5 h-3.5" /></button>
+                                  </>
                                 </div>
                               </div>
                               <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
@@ -1980,7 +2082,7 @@ export default function App() {
                     );
                   })}
                   {/* Show hidden panels button in layout edit mode */}
-                  {layoutEditMode && col.panels.some(p => p.hidden) && (
+                  {col.panels.some(p => p.hidden) && (
                     <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
                       {col.panels.filter(p => p.hidden).map(hp => (
                         <button
@@ -1996,7 +2098,7 @@ export default function App() {
                   )}
                 </div>
                 {/* Column drag divider */}
-                {colIdx < customLayout.columns.filter((c) => c.panels.some(p => !p.hidden)).length - 1 && (
+                {colIdx < customLayout.columns.length - 1 && (
                   <div
                     className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-violet-500/50 active:bg-violet-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
                     onMouseDown={startDrag(`custom-col-${colIdx}`, col.widthFraction)}
@@ -2008,16 +2110,23 @@ export default function App() {
               </React.Fragment>
             );
           })}
-          {/* Reset custom layout button in edit mode */}
-          {layoutEditMode && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
-              <button
-                onClick={() => setCustomLayout(DEFAULT_CUSTOM_LAYOUT)}
-                className="px-3 py-1.5 text-xs bg-black/60 hover:bg-black/80 text-zinc-400 hover:text-white border border-white/10 rounded-md backdrop-blur-sm transition-colors"
-                title="Reset custom layout to default"
-              >
-                Reset Layout
-              </button>
+          {customLayout.columns.some((col) => col.panels.some((p) => p.hidden)) && (
+            <div className="absolute bottom-3 left-3 z-20 flex flex-wrap items-center gap-1.5 max-w-[75%]">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Minimized</span>
+              {customLayout.columns.flatMap((col, colIdx) =>
+                col.panels
+                  .filter((p) => p.hidden)
+                  .map((p) => (
+                    <button
+                      key={`${colIdx}-${p.panel}`}
+                      onClick={() => setPanelHidden(colIdx, p.panel, false)}
+                      className="px-2 py-1 text-[11px] rounded bg-violet-500/15 border border-violet-500/25 text-violet-300 hover:bg-violet-500/25"
+                    >
+                      <Eye className="w-3 h-3 inline mr-1" />
+                      {p.panel}
+                    </button>
+                  ))
+              )}
             </div>
           )}
         </main>
