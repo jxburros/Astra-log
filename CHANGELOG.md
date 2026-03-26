@@ -1,6 +1,12 @@
 # Changelog
 
 ## 2026-03-26 - Codex
+- Enforced strict Grok prohibition in `server.ts` by filtering `/api/models?provider=local` results so any Ollama tag whose id/name contains `grok` is removed before reaching the UI.
+- Added AI Settings policy UX in `SettingsModal.tsx`: permanent muted notice, manual custom model ID field, and a save interceptor that scans model/local URL inputs for `grok` and blocks saving.
+- Added app-level hard block in `App.tsx` with a policy alert modal to prevent restricted settings from being persisted, even if a save attempt bypasses modal-local checks.
+- Updated README to document Grok policy enforcement across backend sanitation, settings warnings, and save blocking.
+
+## 2026-03-26 - Codex
 - Removed the redundant Focus Mode control and mode path from the Standard layout flow; Zen Focus remains the single distraction-free preset.
 - Moved Custom layout controls (column selector, reset, and lock/edit toggle) into the app header and only render them when the Custom preset is active.
 - Updated README layout documentation to reflect the new header-based Custom controls and the Focus Mode removal.

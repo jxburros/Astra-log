@@ -77,6 +77,7 @@ export default function App() {
   /** Incremented to fully reset the hidden upload input when starting a new project. */
   const [uploadInputKey, setUploadInputKey] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showGrokWarning, setShowGrokWarning] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem('ai_settings');
     if (saved) {
@@ -391,6 +392,11 @@ export default function App() {
   }, []);
 
   const handleSaveSettings = (newSettings: Settings) => {
+    const hasRestrictedGrok = /grok/i.test(`${newSettings.localUrl || ''} ${newSettings.model || ''}`);
+    if (hasRestrictedGrok) {
+      setShowGrokWarning(true);
+      return;
+    }
     setSettings(newSettings);
     localStorage.setItem('ai_settings', JSON.stringify(newSettings));
   };
@@ -1230,6 +1236,32 @@ export default function App() {
           onProceed={() => handleScanDecision(true)}
           onCancel={() => handleScanDecision(false)}
         />
+      )}
+
+      {showGrokWarning && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-zinc-900 border border-rose-500/30 rounded-2xl shadow-2xl">
+            <div className="px-5 py-4 border-b border-white/10">
+              <h2 className="text-sm font-semibold text-white">Policy Alert: Restricted Model Detected</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-zinc-300">
+                Astra/log has detected a Grok-based model. Due to significant ethical and security concerns regarding its development and the actions of Elon Musk, the use of Grok is strictly prohibited on this platform. While you may technically implement an open-source version via a local provider, doing so is a violation of our Terms of Service.
+              </p>
+              <p className="text-sm text-zinc-300">
+                Notice: We do not provide technical support for sessions involving Grok. Users use Grok at their own risk.
+              </p>
+            </div>
+            <div className="flex justify-end px-5 py-3 border-t border-white/10 bg-white/5 rounded-b-2xl">
+              <button
+                onClick={() => setShowGrokWarning(false)}
+                className="px-4 py-1.5 text-sm text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 rounded-lg transition-colors"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Phase 4.2: Permission dialog ────────────────────────────────────── */}

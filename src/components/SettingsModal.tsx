@@ -28,11 +28,21 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsFallback, setModelsFallback] = useState(false);
+  const [showGrokWarning, setShowGrokWarning] = useState(false);
+  const [grokDetectedInInputs, setGrokDetectedInInputs] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setLocalSettings(settings);
+    setShowGrokWarning(false);
+    setGrokDetectedInInputs(false);
   }, [settings]);
+
+  const hasGrok = (value: string) => /grok/i.test(value);
+
+  const updateGrokDetection = (nextSettings: Settings) => {
+    setGrokDetectedInInputs(hasGrok(nextSettings.localUrl || '') || hasGrok(nextSettings.model || ''));
+  };
 
   // Fetch models whenever the modal opens
   useEffect(() => {
@@ -65,7 +75,9 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   }
 
   function handleProviderChange(provider: Provider) {
-    setLocalSettings(prev => ({ ...prev, provider, model: '' }));
+    const nextSettings = { ...localSettings, provider, model: '' };
+    setLocalSettings(nextSettings);
+    updateGrokDetection(nextSettings);
     setModels([]);
     doFetchModels(provider, localSettings.apiKey, '', localSettings.localUrl);
   }
@@ -73,7 +85,8 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   function handleApiKeyChange(apiKey: string) {
     const provider = localSettings.provider;
     const currentModel = localSettings.model;
-    setLocalSettings(prev => ({ ...prev, apiKey }));
+    const nextSettings = { ...localSettings, apiKey };
+    setLocalSettings(nextSettings);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (provider !== 'local') {
       debounceRef.current = setTimeout(() => {
@@ -83,11 +96,22 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   }
 
   function handleLocalUrlChange(localUrl: string) {
-    setLocalSettings(prev => ({ ...prev, localUrl }));
+    const nextSettings = { ...localSettings, localUrl };
+    setLocalSettings(nextSettings);
+    updateGrokDetection(nextSettings);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       doFetchModels('local', '', localSettings.model, localUrl);
     }, 700);
+  }
+
+  function handleSaveAttempt() {
+    if (grokDetectedInInputs || hasGrok(localSettings.localUrl || '') || hasGrok(localSettings.model || '')) {
+      setShowGrokWarning(true);
+      return;
+    }
+    onSave(localSettings);
+    onClose();
   }
 
   if (!isOpen) return null;
@@ -115,6 +139,7 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
               <option value="anthropic">Anthropic</option>
               <option value="local">Local/Network (Ollama)</option>
             </select>
+            <p className="mt-1.5 text-[10px] text-zinc-600">The use of Grok on this platform is prohibited.</p>
           </div>
 
           {localSettings.provider !== 'local' && (
@@ -148,7 +173,11 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
             </div>
             <select
               value={localSettings.model}
-              onChange={e => setLocalSettings(prev => ({ ...prev, model: e.target.value }))}
+              onChange={e => {
+                const nextSettings = { ...localSettings, model: e.target.value };
+                setLocalSettings(nextSettings);
+                updateGrokDetection(nextSettings);
+              }}
               disabled={modelsLoading || models.length === 0}
               className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all disabled:opacity-50"
             >
@@ -170,6 +199,20 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
                 Ollama not reachable. Make sure it's running and the URL is correct.
               </p>
             )}
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-zinc-500 mb-1">Custom Model ID</label>
+              <input
+                type="text"
+                value={localSettings.model}
+                onChange={e => {
+                  const nextSettings = { ...localSettings, model: e.target.value };
+                  setLocalSettings(nextSettings);
+                  updateGrokDetection(nextSettings);
+                }}
+                placeholder="Enter custom model ID"
+                className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
+              />
+            </div>
           </div>
 
           {localSettings.provider === 'local' && (
@@ -208,13 +251,39 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
             Cancel
           </button>
           <button
-            onClick={() => { onSave(localSettings); onClose(); }}
+            onClick={handleSaveAttempt}
             className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white rounded-xl transition-all font-medium shadow-lg shadow-indigo-500/20"
           >
             Save Settings
           </button>
         </div>
       </div>
+
+      {showGrokWarning && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-zinc-900 border border-rose-500/30 rounded-2xl shadow-2xl">
+            <div className="px-5 py-4 border-b border-white/10">
+              <h2 className="text-sm font-semibold text-white">Policy Alert: Restricted Model Detected</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-zinc-300">
+                Astra/log has detected a Grok-based model. Due to significant ethical and security concerns regarding its development and the actions of Elon Musk, the use of Grok is strictly prohibited on this platform. While you may technically implement an open-source version via a local provider, doing so is a violation of our Terms of Service.
+              </p>
+              <p className="text-sm text-zinc-300">
+                Notice: We do not provide technical support for sessions involving Grok. Users use Grok at their own risk.
+              </p>
+            </div>
+            <div className="flex justify-end px-5 py-3 border-t border-white/10 bg-white/5 rounded-b-2xl">
+              <button
+                onClick={() => setShowGrokWarning(false)}
+                className="px-4 py-1.5 text-sm text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 rounded-lg transition-colors"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
