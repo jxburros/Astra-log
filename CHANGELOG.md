@@ -1,6 +1,15 @@
 # Changelog
 
 ## 2026-03-26 - Codex
+- Removed the non-custom "Layout Edit Mode" toggle and kept Standard/Architect/Zen as fixed presets while custom layout remains the sole panel-arrangement workflow.
+- Fixed drag-and-drop overlay behavior so dragging custom-layout panels no longer triggers the global ZIP-upload overlay; file-drop affordance now appears only for actual file drags.
+- Added custom-layout column drop highlighting with an in-column "+ Add to column" target indicator during panel drag.
+- Added custom-layout lock/edit toggle: "Lock layout" hides column/panel customization controls and drag handles; "Edit layout" restores them.
+- Standardized custom-layout movement controls across all panel headers with a consistent button order (left, right, up, down, hide).
+- Rebalanced custom-layout stacked panel heights automatically when panels are moved, hidden, restored, or columns are added/removed so panels fill their columns cleanly.
+- Updated README layout documentation to reflect removal of Layout Edit Mode and new custom-layout lock/column-drop behavior.
+
+## 2026-03-26 - Codex
 - Unified custom workspace behavior into a single mode by removing the extra edit-mode dependency inside the custom preset and limiting the ✥ layout-edit toggle to non-custom layouts.
 - Enhanced custom layout controls with configurable column count (1–4), add/remove column actions, and persistent resizing across all columns and stacked panel rows.
 - Added drag-and-drop panel movement between columns (Terminal, Preview, Chat, Scratch Pad) with drop targets, while keeping existing move/swap controls for precise placement.
