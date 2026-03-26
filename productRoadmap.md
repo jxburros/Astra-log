@@ -14,7 +14,7 @@
 
 ---
 
-## Current Capabilities (Status: V1.0-RC)
+## Current Capabilities (Status: V1.0)
 The following features are fully implemented and verified in the current build:
 
 ### Core Runtime & Boot System
@@ -24,10 +24,11 @@ The following features are fully implemented and verified in the current build:
 - [x] **Session-Based Runtime Reuse**: Core runtime remains active for the duration of the session.
 
 ### Workspace & UI
-- [x] **Fluid Multi-Layout Workspace**: Three switchable presets accessible via the header Layout Switcher:
-    - **Standard**: Terminal (left), Preview (center), Chat + Scratch Pad (right).
+- [x] **Fluid Multi-Layout Workspace**: Four switchable presets accessible via the header Layout Switcher:
+    - **Standard**: Terminal (left), Preview (center), Chat + Scratch Pad stacked vertically in the right panel.
     - **Architect**: Preview + Chat side-by-side on top, full-width Terminal on the bottom with vertical resize.
     - **Zen Focus**: Scratch Pad (left) and Preview (right) only for distraction-free review.
+    - **Custom**: Free-arrangement mode for Terminal, Preview, Chat, and Scratch Pad across resizable columns; custom controls (column count, drag-and-drop, lock/edit toggle) live in the header while Custom is active.
 - [x] **Responsive Adaptation**: Viewports below 1024px switch to a full-height Preview with a collapsible bottom drawer and persistent tab bar.
 - [x] **Ambient Feedback System**: Visual signals replace verbose logs (e.g., "ready" status uses a `glow-success` pulse).
 - [x] **Intentional Destruction**: High-quality "radial-wipe" animation when starting a new project to visually confirm data erasure.
@@ -35,7 +36,6 @@ The following features are fully implemented and verified in the current build:
 ### AI & Thought System
 - [x] **Context-Aware AI Chat**: Integrated assistant reads the project structure and file contents to assist in generating implementation plans.
 - [x] **AI Behavior Layer**: Passive handling for short inputs, reduced verbosity, and structured explanation-first responses.
-- [x] **Action Chips**: One-click follow-up prompts including `[Expand]`, `[Clarify]`, and `[What's missing]`.
 - [x] **Suggested Responses**: Context-aware buttons like `Yes`/`No` or `Proceed`/`Explain further` appear after AI messages.
 - [x] **Diagnostic Command Runner**: AI-suggested terminal commands are rendered as clickable run buttons requiring user confirmation.
 - [x] **Concise Mode**: Toggle (⚡) to force bullet-point, maximum 5-item AI responses with no preamble.
@@ -51,20 +51,22 @@ The following features are fully implemented and verified in the current build:
 - [x] **Sandboxed Preview**: Iframe hardened with `sandbox` restrictions and `no-referrer` policy to isolate the running app.
 - [x] **Structured Artifact Export**: Implementation plans exportable as Markdown, PDF, JSON, HTML, or Plain Text.
 - [x] **Evolution Snapshots**: Ability to capture plan states at intervals to compare iterations side-by-side during a session.
+- [x] **Strict Grok Policy Enforcement**: Backend filters Ollama model tags containing `grok`; AI Settings displays a permanent policy notice; Save Settings is hard-blocked with a policy alert if `grok` appears in manual model or local URL inputs.
 
----
-
-## The Intended 1.0 Product
-The 1.0 release targets the perfection of the "Technical Consultant" persona, providing a seamless "Technical Tax" removal for any project.
-
-### 1.0 Development Items (Final Push)
+### AI Reviewer & Extended Features
 - [x] **AI App Reviewer**: The AI "looks" at the rendered preview to provide automated notes on accessibility (A11y), UI/UX critiques, and color contrast improvements.
-- [x] **BYOK Enhancements**:
-    - **Local Model Discovery**: Update the `/api/models` endpoint to fetch live tags from local providers (e.g., Ollama’s `/api/tags`) instead of using hardcoded defaults.
-    - **2026 Model Registry**: Update `FALLBACK_MODELS` to current standards, removing deprecated versions from the Gemini 2.5 and Claude 4.5 eras.
-- [x] **Custom Persona Settings**: Add a "Custom Instructions" field in the Settings Modal to allow users to override or append to the default technical consultant behavior.
-- [x] **Visual Plan Diffs**: Complete the "Compare" view in the Export Modal to provide clear visual highlighting of additions/deletions between captured snapshots.
-- [x] **Session Freshness Indicator**: Add a subtle timer near the "New Project" button to track the active duration of the current transient session.
+- [x] **Custom Persona Settings**: A "Custom Instructions" field in Settings allows users to override or append to the default technical consultant AI behavior.
+- [x] **Visual Plan Diffs**: The "Compare" view in the Export Modal provides clear visual highlighting of additions/deletions between captured snapshots.
+- [x] **Session Freshness Indicator**: A subtle `HH:MM:SS` timer near the "New Project" button tracks the active duration of the current transient session.
+
+### BYOK & Model Registry
+- [x] **Local Model Discovery**: The `/api/models` endpoint fetches live tags from Ollama's `/api/tags` instead of using hardcoded defaults.
+- [x] **2026 Model Registry**: `FALLBACK_MODELS` updated to current standards; removed deprecated Gemini 1.5, Claude 3 Opus, GPT-4 Turbo, and o1/o1-mini; added GPT-4.1, o3, o4-mini, Gemini 2.0 Pro (Exp), and Claude 4.5 (Opus/Sonnet/Haiku).
+
+### Onboarding & Help
+- [x] **Welcome Onboarding**: One-time splash screen on first launch explaining Zero Persistence and Consultant-Only principles.
+- [x] **Workspace Tour**: 3-step guided tour (Terminal → Preview → Scratch Pad) with SVG spotlight highlighting.
+- [x] **In-App Help Guide**: `?` icon in the header opens a usage guide with keyboard shortcuts and workflow tips.
 
 ---
 

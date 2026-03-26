@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-03-26 - GitHub Copilot
+- Removed "Action Chips" (`Expand`, `Clarify`, `What's missing`) from `productRoadmap.md` Current Capabilities to match the removal already noted in the 2026-03-26 changelog entry.
+- Added "Custom" layout preset to `productRoadmap.md` Current Capabilities (four presets: Standard, Architect, Zen Focus, Custom).
+- Added Strict Grok Policy Enforcement to `productRoadmap.md` Current Capabilities (backend filtering, Settings notice, Save block).
+- Moved all completed "1.0 Development Items (Final Push)" into `productRoadmap.md` Current Capabilities; removed the now-redundant "Intended 1.0 Product" section.
+- Updated `productRoadmap.md` status from V1.0-RC to **V1.0**.
+- Updated `README.md` OpenAI model list to add `o3` and `o3-mini`, matching the current `FALLBACK_MODELS` registry in `server.ts`.
+- Reordered `README.md` Gemini model list to match `FALLBACK_MODELS` server order (pro first).
+- Updated `README.md` 2026 Model Registry bullet to include `o3`/`o3-mini` in the additions list.
+- Added creator/copyright branding line to `README.md` (Jeffrey Guntly · © JX Holdings, LLC).
+- Updated `package.json` version from `0.0.0` to `1.0.0`.
+- Updated `src-tauri/tauri.conf.json` version from `0.0.0` to `1.0.0`.
+
 ## 2026-03-26 - Codex
 - Updated `SettingsModal.tsx` to always show a persistent policy banner in AI Settings with the short message: “Grok is prohibited.”
 - Removed startup follow-up chips (`Expand`, `Clarify`, `What's missing`) from `ChatPanel.tsx` so they no longer appear by default on assistant messages.
