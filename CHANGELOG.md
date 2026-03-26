@@ -14,6 +14,11 @@
 - Updated `src-tauri/tauri.conf.json` version from `0.0.0` to `1.0.0`.
 
 ## 2026-03-26 - Codex
+- Removed the outdated legacy app descriptor from `productRoadmap.md` to keep product identity terminology consistent.
+- Added a compact, always-visible in-app attribution bar beneath the header crediting Jeffrey Guntly and JX Holdings, LLC.
+- Updated `README.md` feature documentation to explicitly note the new creator attribution bar in the app UI.
+
+## 2026-03-26 - Codex
 - Updated `SettingsModal.tsx` to always show a persistent policy banner in AI Settings with the short message: “Grok is prohibited.”
 - Removed startup follow-up chips (`Expand`, `Clarify`, `What's missing`) from `ChatPanel.tsx` so they no longer appear by default on assistant messages.
 - Enhanced contextual quick replies in `ChatPanel.tsx` so AI-generated short-answer buttons can be shown for direct questions and terminal-command decision moments, not only strict question-ending messages.
