@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, ChevronRight, PlayCircle, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
 import type { Settings } from './SettingsModal';
+import { sendChat } from '../lib/aiClient';
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -217,43 +218,18 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
         const data = await response.json();
         reply = data.message?.content || 'No response from the local model — is it running?';
       } else {
+        // Cloud providers — direct in Tauri, proxied in browser
         if (!settings.apiKey) {
           throw new Error('API key is missing — head to Settings to add one.');
         }
 
-        // Cloud proxy
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            provider: settings.provider,
-            apiKey: settings.apiKey,
-            model: settings.model,
-            messages: newMessages,
-            systemPrompt: dynamicSystemPrompt
-          })
-        });
-        
-        if (!response.ok) {
-          const text = await response.text();
-          let errorMessage = `Server error: ${response.status}`;
-          try {
-            const errorData = JSON.parse(text);
-            errorMessage = errorData.error || errorMessage;
-          } catch (e) {
-            // Not JSON, probably an HTML error page
-            if (response.status === 413) {
-              errorMessage = "The project context is a bit too large — try reducing the number of files.";
-            } else {
-              errorMessage = `Server error ${response.status}: ${text.substring(0, 100)}...`;
-            }
-          }
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        reply = data.reply;
+        reply = await sendChat(
+          settings.provider,
+          settings.apiKey,
+          settings.model,
+          newMessages,
+          dynamicSystemPrompt,
+        );
       }
 
       const parsedReply = parseAssistantReply(reply);

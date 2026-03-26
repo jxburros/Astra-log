@@ -9,7 +9,7 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
-                .title("NOVA Sandbox")
+                .title("Astra/log")
                 .inner_size(1440.0, 900.0)
                 .resizable(true)
                 .on_web_resource_request(|_request, response: &mut tauri::http::Response<Cow<'static, [u8]>>| {
