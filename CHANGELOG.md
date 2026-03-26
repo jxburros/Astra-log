@@ -1,6 +1,11 @@
 # Changelog
 
 ## 2026-03-26 - Codex
+- Removed the redundant Focus Mode control and mode path from the Standard layout flow; Zen Focus remains the single distraction-free preset.
+- Moved Custom layout controls (column selector, reset, and lock/edit toggle) into the app header and only render them when the Custom preset is active.
+- Updated README layout documentation to reflect the new header-based Custom controls and the Focus Mode removal.
+
+## 2026-03-26 - Codex
 - Removed the non-custom "Layout Edit Mode" toggle and kept Standard/Architect/Zen as fixed presets while custom layout remains the sole panel-arrangement workflow.
 - Fixed drag-and-drop overlay behavior so dragging custom-layout panels no longer triggers the global ZIP-upload overlay; file-drop affordance now appears only for actual file drags.
 - Added custom-layout column drop highlighting with an in-column "+ Add to column" target indicator during panel drag.
