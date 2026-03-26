@@ -153,8 +153,6 @@ It is **not legally binding** — the full license text is the source of truth.
 - Study the code and modify it  
 - Build your own versions for non-commercial use  
 
----
-
 ### ⚠️ What You Must Do
 
 - Keep attribution to the original creator visible  
@@ -165,8 +163,6 @@ It is **not legally binding** — the full license text is the source of truth.
   - Document AI usage (`DEVELOPMENT_MANIFESTO.md`)  
   - Apply important security updates  
 
----
-
 ### ❌ What You Cannot Do
 
 - Sell Astra/log or a modified version of it  
@@ -175,8 +171,6 @@ It is **not legally binding** — the full license text is the source of truth.
 - Use Astra/log branding to promote your own product  
 - Use Astra/log code with Grok or build public Grok-based versions  
 
----
-
 ### 🤖 About Grok
 
 - Using Grok with Astra/log:
@@ -184,22 +178,16 @@ It is **not legally binding** — the full license text is the source of truth.
 - Feeding Astra/log code into Grok or publishing Grok-based versions:
   - Terminates your license  
 
----
-
 ### ⚖️ Legal Notes (Simplified)
 
 - You are granted necessary patent rights to use the software  
 - If you sue over patents related to Astra/log, your license is terminated  
 - Breaking the license rules means you must stop using the software  
 
----
-
 ### 🧠 Simple Summary
 
 You can **use, learn from, and build on Astra/log**, including at work internally.
 
 You **cannot turn it into a competing product, sell it, or run it as a service**.
-
----
 
 For full terms, see the [LICENSE](./LICENSE).
