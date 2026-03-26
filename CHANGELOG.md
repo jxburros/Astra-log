@@ -1,6 +1,13 @@
 # Changelog
 
 ## 2026-03-26 - Codex
+- Unified custom workspace behavior into a single mode by removing the extra edit-mode dependency inside the custom preset and limiting the ✥ layout-edit toggle to non-custom layouts.
+- Enhanced custom layout controls with configurable column count (1–4), add/remove column actions, and persistent resizing across all columns and stacked panel rows.
+- Added drag-and-drop panel movement between columns (Terminal, Preview, Chat, Scratch Pad) with drop targets, while keeping existing move/swap controls for precise placement.
+- Added minimize/reopen coverage for all custom-layout panels, including Preview; hidden panels can now always be restored from a persistent "Minimized" tray.
+- Updated README layout documentation to reflect the new single custom-layout mode and capabilities.
+
+## 2026-03-26 - Codex
 - Added `scripts/ensureLightningcssBinary.mjs` to detect and repair missing `lightningcss` native bindings by installing the correct platform package when optional dependencies are skipped.
 - Added `predev` and `prebuild` scripts so the lightningcss preflight check runs automatically before starting dev server or building.
 - Updated README troubleshooting with the `lightningcss.win32-x64-msvc.node` startup error and the new automatic repair behavior.
