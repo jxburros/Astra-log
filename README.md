@@ -34,7 +34,7 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Strict Grok Policy Notice** — AI Settings always displays a persistent policy message: **“Grok is prohibited.”**
 - **Draft-to-Chat (Stage Notes for AI)** — click “Stage for AI” (↗) in the Scratch Pad toolbar to prepend your private notes to the next chat message; a banner in the Chat input area confirms staging and allows dismissal before sending
 - **Diagnostic command runner** — AI can suggest terminal commands in chat; users can click to run with explicit confirmation (never auto-executes)
-- **Artifact Export (multi-style)** — use the compact **Create Artifact** button in Chat to choose export style: **Simple recap of notes sent to AI**, **Implementation plan**, or **Structured fix list (no plan)**; each style can be downloaded as Markdown (`.md`), PDF (via browser print), plain text (`.txt`), HTML (`.html`), or JSON (`.json`)
+- **Artifact Export (multi-style)** — use the compact **Create Artifact** button in Chat to choose export style: **Simple recap of notes sent to AI**, **Implementation plan**, or **Structured fix list (no plan)**; each style can be downloaded as Markdown (`.md`), plain text (`.txt`), HTML (`.html`), or JSON (`.json`), and PDF is available in web mode (desktop currently shows **Coming Soon** for PDF export)
 - **Optional Scratch Pad Addendum** — export flow includes a user-controlled toggle to append private Scratch Pad notes at the bottom of the document; Scratch Pad content remains local and is never sent to AI
 - **Evolution Snapshots** — take snapshots of the currently selected export style at any point during a session; view all snapshots in the Snapshots tab; compare any two snapshots in the Compare tab with line-level **visual diff highlighting** (green for additions, red for removals); all snapshots are session-only and cleared on "New Project"
 - **AI App Reviewer** — click the compact **Review App** button in the Chat panel to request a structured AI review of the running preview covering **Accessibility (A11y)**, **UI/UX critique**, and **Color Contrast** (WCAG AA compliance); analysis is derived from project source files
@@ -88,7 +88,8 @@ npm start
 
 If you want to run Astra/log as a desktop application and produce a native installer (`.exe`, `.app`, etc.), you can build it with Tauri v2.
 
-The desktop build has full AI feature parity with the browser version. When running inside Tauri, the app detects the desktop runtime and calls AI provider APIs (OpenAI, Anthropic, Gemini, Ollama) directly from the frontend — no Express proxy server is needed.
+The desktop build has full AI feature parity with the browser version. When running inside Tauri, the app detects the desktop runtime and calls AI provider APIs (OpenAI, Anthropic, Gemini, Ollama) directly from the frontend — no Express proxy server is needed.  
+Note: PDF artifact export is currently disabled on desktop and shown as **Coming Soon**; use Markdown/HTML/TXT/JSON exports in the meantime.
 
 ### Prerequisites
 

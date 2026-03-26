@@ -10,6 +10,7 @@ import {
   downloadTextFile,
   printAsPDF,
 } from '../lib/exportUtils';
+import { isTauriRuntime } from '../lib/aiClient';
 
 export interface PlanSnapshot {
   id: string;
@@ -125,6 +126,7 @@ export function ExportModal({
     }),
     [exportStyle, includeScratchPad, scratchPadContent],
   );
+  const isDesktopRuntime = useMemo(() => isTauriRuntime(), []);
 
   if (!isOpen) return null;
 
@@ -288,8 +290,17 @@ export function ExportModal({
                     <button onClick={() => handleDownload('md')} className="py-2.5 px-4 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 border border-indigo-500/30 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
                       <Download className="w-4 h-4" /> Markdown
                     </button>
-                    <button onClick={() => handleDownload('pdf')} className="py-2.5 px-4 bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border border-violet-500/30 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
-                      <FileText className="w-4 h-4" /> PDF
+                    <button
+                      onClick={() => handleDownload('pdf')}
+                      disabled={isDesktopRuntime}
+                      title={isDesktopRuntime ? 'Coming Soon on desktop' : 'Export as PDF'}
+                      className={`py-2.5 px-4 border rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+                        isDesktopRuntime
+                          ? 'bg-zinc-800/50 text-zinc-500 border-zinc-700/60 cursor-not-allowed'
+                          : 'bg-violet-600/15 hover:bg-violet-600/25 text-violet-300 border-violet-500/30'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4" /> {isDesktopRuntime ? 'PDF (Coming Soon)' : 'PDF'}
                     </button>
                     <button onClick={() => handleDownload('txt')} className="py-2.5 px-4 bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/15 rounded-xl text-sm font-medium transition-colors">
                       Plain Text (.txt)
