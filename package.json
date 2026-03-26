@@ -11,7 +11,9 @@
     "dev": "tsx server.ts",
     "lint": "tsc --noEmit",
     "preview": "vite preview",
-    "start": "node dist/server.cjs"
+    "start": "node dist/server.cjs",
+    "predev": "node scripts/ensureLightningcssBinary.mjs",
+    "prebuild": "node scripts/ensureLightningcssBinary.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

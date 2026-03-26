@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-03-26 - Codex
+- Added `scripts/ensureLightningcssBinary.mjs` to detect and repair missing `lightningcss` native bindings by installing the correct platform package when optional dependencies are skipped.
+- Added `predev` and `prebuild` scripts so the lightningcss preflight check runs automatically before starting dev server or building.
+- Updated README troubleshooting with the `lightningcss.win32-x64-msvc.node` startup error and the new automatic repair behavior.
+
 ## 2026-03-25 - Codex
 - Simplified the Chat panel controls by removing the standalone "Generate Implementation Plan" action and consolidating artifact generation into a compact "Create Artifact" button that points to multi-style, multi-format export.
 - Reduced Chat action button footprint by making both "Create Artifact" and "Review App" compact controls while keeping text readable.
