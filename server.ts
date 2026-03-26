@@ -79,10 +79,12 @@ async function startServer() {
         const response = await fetch(`${baseUrl}/api/tags`);
         if (!response.ok) throw new Error(`Ollama responded with ${response.status}`);
         const data = await response.json() as { models?: { name: string; model: string }[] };
-        const models = (data.models || []).map((m) => ({
-          id: m.model || m.name,
-          name: m.name,
-        }));
+        const models = (data.models || [])
+          .map((m) => ({
+            id: m.model || m.name,
+            name: m.name,
+          }))
+          .filter((m) => !/grok/i.test(`${m.id} ${m.name}`));
         return res.json({ models, fallback: false });
       } catch {
         // Ollama not reachable — return an empty list so the UI can show guidance
