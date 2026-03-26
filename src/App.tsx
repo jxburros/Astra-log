@@ -2176,21 +2176,6 @@ export default function App() {
                       </React.Fragment>
                     );
                   })}
-                  {/* Show hidden panels button in layout edit mode */}
-                  {!customLayoutLocked && col.panels.some(p => p.hidden) && (
-                    <div className="absolute bottom-2 right-2 flex flex-col gap-1 z-10">
-                      {col.panels.filter(p => p.hidden).map(hp => (
-                        <button
-                          key={hp.panel}
-                          onClick={() => setPanelHidden(colIdx, hp.panel, false)}
-                          className="flex items-center gap-1 px-2 py-1 text-[10px] bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 rounded border border-violet-500/30 transition-colors"
-                          title={`Show ${hp.panel}`}
-                        >
-                          <Eye className="w-3 h-3" /> {hp.panel}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 {/* Column drag divider */}
                 {colIdx < customLayout.columns.length - 1 && !customLayoutLocked && (

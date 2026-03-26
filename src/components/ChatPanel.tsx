@@ -113,6 +113,21 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
     sessionStorage.getItem('chat_conciseMode') === 'true'
   );
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [panelWidth, setPanelWidth] = useState<number>(400);
+
+  // Track panel width for compact/responsive mode
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setPanelWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const isCompact = panelWidth < 280;
 
   // Persist concise mode preference
   useEffect(() => {
@@ -252,13 +267,13 @@ Format your response with clear headings for each category and bullet points for
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/45 backdrop-blur-xl border-l border-white/8">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 bg-white/4">
-        <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider">
-          <Bot className="w-3.5 h-3.5 text-indigo-400" />
-          AI Brainstorming
+    <div ref={rootRef} className="flex flex-col h-full bg-black/45 backdrop-blur-xl border-l border-white/8 min-w-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/8 bg-white/4 shrink-0">
+        <div className="flex items-center gap-2 text-xs font-medium text-zinc-400 uppercase tracking-wider min-w-0">
+          <Bot className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          {!isCompact && <span className="truncate">AI Brainstorming</span>}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Concise Mode Toggle */}
           <button
             onClick={() => setConciseMode(m => !m)}
@@ -266,7 +281,7 @@ Format your response with clear headings for each category and bullet points for
             title={conciseMode ? 'Concise mode on — bullet-point responses' : 'Enable concise mode — force bulleted summaries'}
           >
             <Zap className="w-3 h-3" />
-            {conciseMode && <span>Concise</span>}
+            {conciseMode && !isCompact && <span>Concise</span>}
           </button>
           {onCollapse && (
             <button
@@ -340,20 +355,22 @@ Format your response with clear headings for each category and bullet points for
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 border-t border-white/8 bg-white/3">
+      <div className="p-3 border-t border-white/8 bg-white/3 shrink-0">
         <div className="mb-3 grid grid-cols-2 gap-2">
           {onExportArtifact && (
             <button
               onClick={() => onExportArtifact(messages)}
               disabled={messages.length <= 1}
-              className="py-1.5 px-2 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-300 hover:text-zinc-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-white/8 text-left"
+              className="py-1.5 px-2 bg-white/4 hover:bg-white/8 disabled:opacity-50 disabled:cursor-not-allowed text-zinc-300 hover:text-zinc-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-white/8 text-left min-h-[36px]"
               title="Create an artifact (plan, structured list, summary) in multiple file formats"
             >
               <FileDown className="w-3.5 h-3.5 shrink-0" />
-              <span className="leading-tight">
-                <span className="block">Create Artifact</span>
-                <span className="block text-[10px] text-zinc-500">Plan/List/Summary · MD/PDF/TXT</span>
-              </span>
+              {!isCompact && (
+                <span className="leading-tight">
+                  <span className="block">Create Artifact</span>
+                  <span className="block text-[10px] text-zinc-500">Plan/List/Summary · MD/PDF/TXT</span>
+                </span>
+              )}
             </button>
           )}
 
@@ -361,13 +378,16 @@ Format your response with clear headings for each category and bullet points for
             <button
               onClick={handleReviewApp}
               disabled={isTyping}
-              className="py-1.5 px-2 bg-violet-500/15 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed text-violet-200 hover:text-violet-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-violet-500/30 min-h-[42px] cursor-pointer"
+              className="py-1.5 px-2 bg-violet-500/15 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed text-violet-200 hover:text-violet-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-violet-500/30 min-h-[36px] cursor-pointer"
+              title="AI Review — Accessibility · UX · Contrast"
             >
               <ScanEye className="w-3.5 h-3.5 shrink-0" />
-              <span className="leading-tight">
-                <span className="block">AI Review</span>
-                <span className="block text-[10px] text-violet-400">Accessibility · UX · Contrast</span>
-              </span>
+              {!isCompact && (
+                <span className="leading-tight">
+                  <span className="block">AI Review</span>
+                  <span className="block text-[10px] text-violet-400">Accessibility · UX · Contrast</span>
+                </span>
+              )}
             </button>
           )}
         </div>
