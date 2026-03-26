@@ -14,11 +14,10 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Sandboxed Preview** — the preview iframe is hardened with `sandbox` restrictions that block top-navigation and other privileged operations, isolating the running app from the main workspace UI
 - **Live preview** — responsive in-browser preview with mobile, tablet, and desktop viewport modes and a navigable URL bar
 - **Layout presets** — four switchable workspace layouts via the header Layout Switcher:
-  - **Standard** — Terminal · Preview · Chat + Scratch Pad stacked vertically in the right panel; drag the horizontal divider to resize the Chat/Scratch split; swap their order in Layout Edit Mode
+  - **Standard** — Terminal · Preview · Chat + Scratch Pad stacked vertically in the right panel; drag the horizontal divider to resize the Chat/Scratch split
   - **Architect** — Preview + Chat side-by-side on top, full-width Terminal bottom row with vertical drag-to-resize
   - **Zen Focus** — Scratch Pad (left) · Preview (right) only; distraction-free review mode
-  - **Custom** — one unified custom-layout mode for Terminal, Preview, Chat, and Scratch Pad: choose column count (1–4), drag/drop any panel into other columns, resize columns and stacked rows, minimize any panel and restore it from the Minimized tray, and reset to defaults in one click
-- **Layout Edit Mode** — click the ✥ (Move) icon in the header to edit non-custom layouts; panels gain a violet highlight and arrow buttons appear to move the Terminal left/right and swap Chat/Scratch Pad order within the right panel; persisted in sessionStorage
+  - **Custom** — one unified custom-layout mode for Terminal, Preview, Chat, and Scratch Pad: choose column count (1–4), drag/drop panels into highlighted target columns, use a consistent movement-control order on every panel (left, right, up, down, hide), auto-balance stacked panel heights within each column, and toggle **Lock Layout** to hide customization controls until you switch back to **Edit layout**
 - **Responsive / Mobile layout** — on viewports below 900 px the workspace switches to a full-height Preview with a collapsible bottom drawer (Terminal / Chat / Notes) and a persistent tab bar
 - **Interactive terminal** — full xterm.js shell backed by the WebContainer
 - **AI chat panel** — context-aware chat that reads your project's file tree and source; supports multiple providers:
