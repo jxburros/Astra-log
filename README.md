@@ -118,6 +118,7 @@ If you want to run Astra/log as a desktop application and produce a native insta
 
 - If you see `'sh' is not a recognized command` on Windows, you are likely running the Unix/macOS Rust command (`curl ... | sh`). Use the Windows install command above instead.
 - If you see `failed to run 'cargo metadata' ... program not found`, Cargo is not installed or not on your PATH. Reopen your terminal after installing Rust and run `cargo --version`.
+- If dev startup fails with `Cannot find module '../lightningcss.win32-x64-msvc.node'` (or another `lightningcss.*.node` variant), run `npm run dev` again after a fresh `npm install`. The app now runs a preflight check that installs the matching platform `lightningcss` binary automatically when npm skips optional dependencies.
 
 ### Build the desktop app
 
