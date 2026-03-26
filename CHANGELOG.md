@@ -183,3 +183,7 @@
 
 ## 2026-03-25 - Codex
 - Increased the in-app header logo display size to improve visibility of `astra-log-new-logo.svg`.
+
+## 2026-03-26 - Codex
+- Fixed desktop Tauri configuration by changing `src-tauri/tauri.conf.json` `productName` from `Astra/log` to `Astra-log` so it passes Tauri schema validation.
+- Updated desktop troubleshooting docs in `README.md` with guidance for the `productName` regex error during `npm run desktop:build`.
