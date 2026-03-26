@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Astra/log",
+  "productName": "Astra-log",
   "version": "1.0.0",
   "identifier": "com.jxburros.astralog",
   "build": {
