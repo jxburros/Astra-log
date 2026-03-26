@@ -194,3 +194,8 @@
 ## 2026-03-26 - Codex
 - Fixed desktop Tauri configuration by changing `src-tauri/tauri.conf.json` `productName` from `Astra/log` to `Astra-log` so it passes Tauri schema validation.
 - Updated desktop troubleshooting docs in `README.md` with guidance for the `productName` regex error during `npm run desktop:build`.
+
+## 2026-03-26 - Codex
+- Completed a general app health pass by running TypeScript and production build checks, then validating desktop build behavior.
+- Updated `ExportModal.tsx` so PDF export is disabled only in Tauri desktop with a visible `PDF (Coming Soon)` button state; web keeps active PDF export.
+- Updated `README.md` export and desktop notes to document that desktop PDF export is currently marked Coming Soon while other formats remain available.
