@@ -1,6 +1,6 @@
-/** Phase 5 — Artifact System: Export modal with structured sections and evolution snapshots. */
+/** Phase 5 — Artifact System: Export modal with AI-powered document generation. */
 import { useMemo, useState } from 'react';
-import { X, Download, FileText, Camera, AlignLeft, CheckSquare, Square } from 'lucide-react';
+import { X, Download, FileText, Camera, AlignLeft, CheckSquare, Square, Loader2 } from 'lucide-react';
 import type { ParsedArtifact, ExportStyle } from '../lib/exportUtils';
 import {
   generateMarkdownDocument,
@@ -34,15 +34,17 @@ interface Props {
   snapshots: PlanSnapshot[];
   /** Called when the user requests a snapshot of the current plan. */
   onTakeSnapshot: () => void;
+  /** Whether the AI is currently generating the artifact content. */
+  isGenerating?: boolean;
 }
 
 type ModalView = 'export' | 'snapshots' | 'compare';
 type FileFormat = 'md' | 'txt' | 'json' | 'html' | 'pdf';
 
 const STYLE_LABELS: Record<ExportStyle, string> = {
-  recap: 'Simple recap of notes sent to AI',
-  'implementation-plan': 'Implementation plan',
-  'fix-list': 'Structured list of fixes (no plan)',
+  recap: 'AI summary of conversation',
+  'implementation-plan': 'AI-generated implementation plan',
+  'fix-list': 'AI-parsed list of issues from conversation',
 };
 
 const STYLE_FILENAME: Record<ExportStyle, string> = {
@@ -108,6 +110,7 @@ export function ExportModal({
   scratchPadContent,
   snapshots,
   onTakeSnapshot,
+  isGenerating = false,
 }: Props) {
   const [view, setView] = useState<ModalView>('export');
   const [compareA, setCompareA] = useState<string>('');
@@ -127,34 +130,34 @@ export function ExportModal({
 
   const sessionDate = new Date();
 
-  const handleDownload = (format: FileFormat) => {
+  const handleDownload = async (format: FileFormat) => {
     const base = `astra-log-${STYLE_FILENAME[exportStyle]}-${new Date().toISOString().slice(0, 10)}`;
 
     if (format === 'pdf') {
-      printAsPDF(artifact, sessionDate, exportOptions);
+      await printAsPDF(artifact, sessionDate, exportOptions);
       return;
     }
 
     if (format === 'md') {
       const md = generateMarkdownDocument(artifact, sessionDate, exportOptions);
-      downloadTextFile(md, `${base}.md`, 'text/markdown');
+      await downloadTextFile(md, `${base}.md`, 'text/markdown');
       return;
     }
 
     if (format === 'txt') {
       const text = generatePlainTextDocument(artifact, sessionDate, exportOptions);
-      downloadTextFile(text, `${base}.txt`, 'text/plain');
+      await downloadTextFile(text, `${base}.txt`, 'text/plain');
       return;
     }
 
     if (format === 'json') {
       const json = generateJsonDocument(artifact, sessionDate, exportOptions);
-      downloadTextFile(json, `${base}.json`, 'application/json');
+      await downloadTextFile(json, `${base}.json`, 'application/json');
       return;
     }
 
     const html = generateHtmlDocument(artifact, sessionDate, exportOptions);
-    downloadTextFile(html, `${base}.html`, 'text/html');
+    await downloadTextFile(html, `${base}.html`, 'text/html');
   };
 
   const snapshotA = snapshots.find(s => s.id === compareA);
@@ -219,11 +222,12 @@ export function ExportModal({
                     <button
                       key={style}
                       onClick={() => onChangeExportStyle(style)}
+                      disabled={isGenerating}
                       className={`text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
                         exportStyle === style
                           ? 'bg-indigo-500/15 border-indigo-500/35 text-indigo-200'
                           : 'bg-black/25 border-white/10 text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-                      }`}
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {STYLE_LABELS[style]}
                     </button>
@@ -239,7 +243,13 @@ export function ExportModal({
                 Include Scratch Pad notes at bottom (never sent to AI)
               </button>
 
-              {artifact.sections.length === 0 ? (
+              {isGenerating ? (
+                <div className="text-center py-10">
+                  <Loader2 className="w-8 h-8 text-indigo-400 mx-auto mb-3 animate-spin" />
+                  <p className="text-zinc-400 text-sm">AI is generating your document...</p>
+                  <p className="text-zinc-600 text-xs mt-1">Reviewing conversation and creating structured output</p>
+                </div>
+              ) : artifact.sections.length === 0 ? (
                 <div className="text-center py-10">
                   <AlignLeft className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-500 text-sm">No planning content yet.</p>
@@ -297,7 +307,7 @@ export function ExportModal({
               <div className="pt-1 border-t border-white/8">
                 <button
                   onClick={onTakeSnapshot}
-                  disabled={artifact.sections.length === 0}
+                  disabled={artifact.sections.length === 0 || isGenerating}
                   className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-white/4 hover:bg-white/8 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-300 border border-white/10 rounded-xl text-sm transition-colors"
                 >
                   <Camera className="w-4 h-4" />
@@ -326,12 +336,12 @@ export function ExportModal({
                         </div>
                       </div>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           const md = generateMarkdownDocument(snap.artifact, snap.timestamp, {
                             style: snap.style,
                             includeScratchPad: false,
                           });
-                          downloadTextFile(md, `astra-log-snapshot-${i + 1}.md`, 'text/markdown');
+                          await downloadTextFile(md, `astra-log-snapshot-${i + 1}.md`, 'text/markdown');
                         }}
                         className="p-2 text-zinc-500 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg transition-colors"
                         title="Download snapshot as Markdown"

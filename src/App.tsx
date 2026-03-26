@@ -6,8 +6,8 @@ import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon,
 import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
-import { buildExportArtifact } from './lib/exportUtils';
-import type { ExportStyle } from './lib/exportUtils';
+import { buildExportArtifact, generateAIExportArtifact } from './lib/exportUtils';
+import type { ExportStyle, AIExportSettings } from './lib/exportUtils';
 import { TerminalComponent } from './components/TerminalComponent';
 import { ChatPanel } from './components/ChatPanel';
 import type { TroubleshootRequest } from './components/ChatPanel';
@@ -190,6 +190,8 @@ export default function App() {
   const [exportSourceMessages, setExportSourceMessages] = useState<Message[]>([]);
   /** Session-only plan snapshots; cleared when a new project session starts. */
   const [planSnapshots, setPlanSnapshots] = useState<PlanSnapshot[]>([]);
+  /** Whether the AI is currently generating export artifact content. */
+  const [isExportGenerating, setIsExportGenerating] = useState(false);
   // ── 1.0: Session Freshness Indicator ──────────────────────────────────────
   /** Unix timestamp (ms) when the current session started (i.e. first non-idle status). */
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
@@ -454,16 +456,43 @@ export default function App() {
   const handleStageNotes = () => setStagedNotes(scratchPadContent);
   const handleClearStagedNotes = () => setStagedNotes('');
 
-  // ── Phase 5.1: Export artifact ─────────────────────────────────────────────
+  // ── Phase 5.1: Export artifact (AI-powered) ────────────────────────────────
+  const triggerAIExportGeneration = async (messages: Message[], style: ExportStyle) => {
+    const aiSettings: AIExportSettings = {
+      provider: settings.provider,
+      apiKey: settings.apiKey,
+      model: settings.model,
+      localUrl: settings.localUrl,
+    };
+    const hasAI = settings.provider === 'local' || !!settings.apiKey;
+    if (!hasAI) {
+      setExportArtifact(buildExportArtifact(messages, style));
+      return;
+    }
+    setIsExportGenerating(true);
+    try {
+      let projectContext: string | undefined;
+      try { projectContext = await getProjectContext(); } catch { /* ignore */ }
+      const artifact = await generateAIExportArtifact(messages, style, aiSettings, projectContext);
+      setExportArtifact(artifact);
+    } catch {
+      setExportArtifact(buildExportArtifact(messages, style));
+    } finally {
+      setIsExportGenerating(false);
+    }
+  };
+
   const handleExportArtifact = (messages: Message[]) => {
     setExportSourceMessages(messages);
     setExportArtifact(buildExportArtifact(messages, exportStyle));
     setIsExportOpen(true);
+    triggerAIExportGeneration(messages, exportStyle);
   };
 
   const handleChangeExportStyle = (style: ExportStyle) => {
     setExportStyle(style);
     setExportArtifact(buildExportArtifact(exportSourceMessages, style));
+    triggerAIExportGeneration(exportSourceMessages, style);
   };
 
   // ── Phase 5.2: Evolution snapshots ────────────────────────────────────────
@@ -1283,6 +1312,7 @@ export default function App() {
         scratchPadContent={scratchPadContent}
         snapshots={planSnapshots}
         onTakeSnapshot={handleTakeSnapshot}
+        isGenerating={isExportGenerating}
       />
 
       {/* ── Phase 3.1: Welcome Modal (one-time) ─────────────────────────────── */}
