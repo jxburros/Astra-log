@@ -1,6 +1,13 @@
 # Changelog
 
 ## 2026-03-26 - GitHub Copilot
+- Created `src/lib/aiClient.ts`: unified AI client that detects Tauri desktop runtime (`window.__TAURI__` / `window.__TAURI_INTERNALS__`) and makes direct calls to OpenAI, Anthropic, Gemini, and Ollama APIs; falls back to the Express proxy server in the browser version.
+- Updated `src/components/SettingsModal.tsx` to use `fetchModels` from `aiClient.ts`, fixing model discovery in the desktop app.
+- Updated `src/components/ChatPanel.tsx` to use `sendChat` from `aiClient.ts`, fixing AI chat in the desktop app.
+- Fixed Tauri window title: changed from `"NOVA Sandbox"` to `"Astra/log"` in `src-tauri/src/main.rs`.
+- Replaced all icon files in `src-tauri/icons/` (32x32.png, 128x128.png, 256x256.png, icon.png, icon.ico, icon.icns) with versions rendered from the official `astralog-icon.svg` using a full browser rendering pipeline (Playwright/Chromium) to correctly reproduce the SVG's embedded images, masks, and filters.
+
+## 2026-03-26 - GitHub Copilot
 - Removed "Action Chips" (`Expand`, `Clarify`, `What's missing`) from `productRoadmap.md` Current Capabilities to match the removal already noted in the 2026-03-26 changelog entry.
 - Added "Custom" layout preset to `productRoadmap.md` Current Capabilities (four presets: Standard, Architect, Zen Focus, Custom).
 - Added Strict Grok Policy Enforcement to `productRoadmap.md` Current Capabilities (backend filtering, Settings notice, Save block).

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw } from 'lucide-react';
+import { fetchModels, type ModelOption } from '../lib/aiClient';
 
 export type Provider = 'openai' | 'anthropic' | 'gemini' | 'local';
 
@@ -11,10 +12,6 @@ export interface Settings {
   customInstructions?: string;
 }
 
-interface ModelOption {
-  id: string;
-  name: string;
-}
 
 interface Props {
   isOpen: boolean;
@@ -56,14 +53,9 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
     setModelsLoading(true);
     setModelsFallback(false);
     try {
-      const params = new URLSearchParams({ provider });
-      if (apiKey) params.append('apiKey', apiKey);
-      if (provider === 'local' && localUrl) params.append('localUrl', localUrl);
-      const res = await fetch(`/api/models?${params}`);
-      const data = await res.json();
-      const fetched: ModelOption[] = data.models || [];
+      const { models: fetched, fallback } = await fetchModels(provider, apiKey, localUrl);
       setModels(fetched);
-      setModelsFallback(!!data.fallback);
+      setModelsFallback(fallback);
       if (fetched.length > 0 && !fetched.find(m => m.id === currentModel)) {
         setLocalSettings(prev => ({ ...prev, model: fetched[0].id }));
       }

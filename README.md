@@ -88,6 +88,8 @@ npm start
 
 If you want to run Astra/log as a desktop application and produce a native installer (`.exe`, `.app`, etc.), you can build it with Tauri v2.
 
+The desktop build has full AI feature parity with the browser version. When running inside Tauri, the app detects the desktop runtime and calls AI provider APIs (OpenAI, Anthropic, Gemini, Ollama) directly from the frontend — no Express proxy server is needed.
+
 ### Prerequisites
 
 1. Install Node.js dependencies:
