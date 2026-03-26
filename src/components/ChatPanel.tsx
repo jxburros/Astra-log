@@ -359,11 +359,14 @@ Format your response with clear headings for each category and bullet points for
           {onRequestAIReview && (
             <button
               onClick={handleReviewApp}
-              disabled={isTyping || messages.length <= 1}
-              className="py-1.5 px-2 bg-violet-500/8 hover:bg-violet-500/15 disabled:opacity-50 disabled:cursor-not-allowed text-violet-300 hover:text-violet-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-violet-500/20"
+              disabled={isTyping}
+              className="py-1.5 px-2 bg-violet-500/15 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed text-violet-200 hover:text-violet-100 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1.5 border border-violet-500/30 min-h-[42px] cursor-pointer"
             >
-              <ScanEye className="w-3.5 h-3.5" />
-              Review App
+              <ScanEye className="w-3.5 h-3.5 shrink-0" />
+              <span className="leading-tight">
+                <span className="block">AI Review</span>
+                <span className="block text-[10px] text-violet-400">Accessibility · UX · Contrast</span>
+              </span>
             </button>
           )}
         </div>
