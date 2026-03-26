@@ -134,3 +134,70 @@ The generated desktop bundles/installers will be created under `src-tauri/target
 ```bash
 npm run desktop:dev
 ```
+
+---
+
+## 📘 Astra/log SAL — Plain Language Summary
+
+This is a human-readable summary of the Astra/log Source-Available License (SAL).  
+It is **not legally binding** — the full license text is the source of truth.
+
+---
+
+### ✅ What You Can Do
+
+- Use Astra/log for personal projects  
+- Use it at work for internal tools and development workflows  
+- Study the code and modify it  
+- Build your own versions for non-commercial use  
+
+---
+
+### ⚠️ What You Must Do
+
+- Keep attribution to the original creator visible  
+- Credit:  
+  > "Original Creator: Jeffrey Guntly / JX Holdings, LLC. Developed as part of the Astra/log project."
+- Remove Astra/log branding if your version is significantly different  
+- Make a reasonable effort to:
+  - Document AI usage (`DEVELOPMENT_MANIFESTO.md`)  
+  - Apply important security updates  
+
+---
+
+### ❌ What You Cannot Do
+
+- Sell Astra/log or a modified version of it  
+- Offer it as a hosted or SaaS product  
+- Build a competing product using Astra/log’s code for profit  
+- Use Astra/log branding to promote your own product  
+- Use Astra/log code with Grok or build public Grok-based versions  
+
+---
+
+### 🤖 About Grok
+
+- Using Grok with Astra/log:
+  - Voids all support and security guarantees  
+- Feeding Astra/log code into Grok or publishing Grok-based versions:
+  - Terminates your license  
+
+---
+
+### ⚖️ Legal Notes (Simplified)
+
+- You are granted necessary patent rights to use the software  
+- If you sue over patents related to Astra/log, your license is terminated  
+- Breaking the license rules means you must stop using the software  
+
+---
+
+### 🧠 Simple Summary
+
+You can **use, learn from, and build on Astra/log**, including at work internally.
+
+You **cannot turn it into a competing product, sell it, or run it as a service**.
+
+---
+
+For full terms, see the [LICENSE](./LICENSE).
