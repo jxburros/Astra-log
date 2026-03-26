@@ -203,7 +203,8 @@ export function ChatPanel({ settings, getProjectContext, troubleshootRequest, on
       
       if (settings.provider === 'local') {
         // Ollama local fetch
-        const response = await fetch(settings.localUrl || 'http://localhost:11434/api/chat', {
+        const ollamaChatUrl = `${(settings.localUrl || 'http://localhost:11434').replace(/\/+$/, '')}/api/chat`;
+        const response = await fetch(ollamaChatUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

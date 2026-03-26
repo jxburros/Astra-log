@@ -86,7 +86,7 @@ export default function App() {
         return { model: '', ...parsed };
       } catch (e) {}
     }
-    return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434/api/chat', model: 'gemini-2.5-flash' };
+    return { provider: 'gemini', apiKey: '', localUrl: 'http://localhost:11434', model: 'gemini-2.5-flash' };
   });
 
   // ── Layout / workspace state (Phase 1) ────────────────────────────────────
@@ -2245,15 +2245,13 @@ export default function App() {
                     Terminal
                   </div>
                   <div className="flex items-center gap-0.5">
-                    {layoutEditMode && (
-                      <button
-                        onClick={() => setTerminalSide('right')}
-                        className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                        title="Move terminal to right"
-                      >
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setTerminalSide('right')}
+                      className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                      title="Move terminal to right side"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => setTerminalCollapsed(true)}
                       className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
@@ -2445,11 +2443,9 @@ export default function App() {
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
                         <span className="text-zinc-700 text-[10px] font-medium uppercase tracking-wider">Chat</span>
-                        {layoutEditMode && (
-                          <button onClick={() => setChatFirst(false)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors ml-auto" title="Move Chat below Scratch Pad">
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button onClick={() => setChatFirst(false)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors ml-auto" title="Move Chat below Scratch Pad">
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
 
@@ -2482,15 +2478,13 @@ export default function App() {
                               <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
                             </div>
                             <div className="flex items-center gap-0.5">
-                              {layoutEditMode && (
-                                <button
-                                  onClick={() => setChatFirst(false)}
-                                  className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                                  title="Move Scratch Pad above Chat"
-                                >
-                                  <ChevronUp className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => setChatFirst(false)}
+                                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                                title="Move Scratch Pad above Chat"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
                                 <ChevronDown className="w-3.5 h-3.5" />
                               </button>
@@ -2538,15 +2532,13 @@ export default function App() {
                               <PenLine className="w-3.5 h-3.5 text-amber-400/80" />Scratch Pad
                             </div>
                             <div className="flex items-center gap-0.5">
-                              {layoutEditMode && (
-                                <button
-                                  onClick={() => setChatFirst(true)}
-                                  className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                                  title="Move Scratch Pad below Chat"
-                                >
-                                  <ChevronDown className="w-3.5 h-3.5" />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => setChatFirst(true)}
+                                className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                                title="Move Scratch Pad below Chat"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
                               <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
                                 <ChevronDown className="w-3.5 h-3.5" />
                               </button>
@@ -2611,11 +2603,9 @@ export default function App() {
                           <ChevronUp className="w-3.5 h-3.5" />
                         </button>
                         <span className="text-zinc-700 text-[10px] font-medium uppercase tracking-wider">Chat</span>
-                        {layoutEditMode && (
-                          <button onClick={() => setChatFirst(true)} className="p-1 text-violet-400 hover:text-violet-300 transition-colors ml-auto" title="Move Chat above Scratch Pad">
-                            <ChevronUp className="w-3.5 h-3.5" />
-                          </button>
-                        )}
+                        <button onClick={() => setChatFirst(true)} className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors ml-auto" title="Move Chat above Scratch Pad">
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     )}
                   </>
@@ -2648,15 +2638,13 @@ export default function App() {
                       Terminal
                     </div>
                     <div className="flex items-center gap-0.5">
-                      {layoutEditMode && (
-                        <button
-                          onClick={() => setTerminalSide('left')}
-                          className="p-1 text-violet-400 hover:text-violet-300 transition-colors"
-                          title="Move terminal to left"
-                        >
-                          <ChevronLeft className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setTerminalSide('left')}
+                        className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+                        title="Move terminal to left side"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={() => setTerminalCollapsed(true)}
                         className="p-1 text-zinc-600 hover:text-zinc-300 transition-colors"

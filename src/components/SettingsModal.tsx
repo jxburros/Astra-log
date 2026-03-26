@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, RefreshCw } from 'lucide-react';
-import { fetchModels, type ModelOption } from '../lib/aiClient';
+import { fetchModels, isTauriRuntime, type ModelOption } from '../lib/aiClient';
 
 export type Provider = 'openai' | 'anthropic' | 'gemini' | 'local';
 
@@ -148,7 +148,9 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
                 className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all"
               />
               <p className="text-xs text-zinc-500 mt-2">
-                Your key is stored locally in your browser and sent securely to the backend proxy.
+                {isTauriRuntime()
+                  ? 'Your key is stored locally and sent directly to the AI provider.'
+                  : 'Your key is stored locally in your browser and sent securely to the backend proxy.'}
               </p>
             </div>
           )}
