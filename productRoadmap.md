@@ -1,7 +1,7 @@
 # Astra/log Product Roadmap — Transient Workspace
 
 ## Core Identity & Strategic Purpose
-**Astra/log** is a specialized "Little Previewer" and Transient Workspace designed for the rapid exploration, validation, and architectural planning of web applications. It operates on the principle that the value of a developer’s session lies in the high-fidelity insights and plans gained, not the files saved.
+**Astra/log** is a specialized Instant Validation Engine and Transient Workspace designed for the rapid exploration, validation, and architectural planning of web applications. It operates on the principle that the value of a developer’s session lies in the high-fidelity insights and plans gained, not the files saved.
 
 * **Solving the "ZIP Loop"**: The app exists to collapse the cycle of export-unzip-build-test into a single, frictionless drag-and-drop action.
 * **The Universal Bridge**: It acts as a translation layer between complex repositories and a workable app, making it accessible for non-coders to test projects.

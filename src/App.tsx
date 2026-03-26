@@ -1469,6 +1469,10 @@ export default function App() {
         </div>
       </header>
 
+      <div className="px-6 py-1.5 border-b border-white/8 bg-black/20 text-center text-[10px] tracking-wide text-zinc-400 shrink-0">
+        Created by Jeffrey Guntly · © JX Holdings, LLC
+      </div>
+
       {/* ── Main workspace ───────────────────────────────────────────────────── */}
 
       {/* ── Mobile layout (< 1024px) ──────────────────────────────────────── */}
