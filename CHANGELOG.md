@@ -1,6 +1,12 @@
 # Changelog
 
 ## 2026-03-26 - Codex
+- Updated `SettingsModal.tsx` to always show a persistent policy banner in AI Settings with the short message: “Grok is prohibited.”
+- Removed startup follow-up chips (`Expand`, `Clarify`, `What's missing`) from `ChatPanel.tsx` so they no longer appear by default on assistant messages.
+- Enhanced contextual quick replies in `ChatPanel.tsx` so AI-generated short-answer buttons can be shown for direct questions and terminal-command decision moments, not only strict question-ending messages.
+- Updated README feature bullets to reflect the removal of action chips, the contextual quick-reply behavior, and the always-visible Grok policy notice.
+
+## 2026-03-26 - Codex
 - Enforced strict Grok prohibition in `server.ts` by filtering `/api/models?provider=local` results so any Ollama tag whose id/name contains `grok` is removed before reaching the UI.
 - Added AI Settings policy UX in `SettingsModal.tsx`: permanent muted notice, manual custom model ID field, and a save interceptor that scans model/local URL inputs for `grok` and blocks saving.
 - Added app-level hard block in `App.tsx` with a policy alert modal to prevent restricted settings from being persisted, even if a save attempt bypasses modal-local checks.

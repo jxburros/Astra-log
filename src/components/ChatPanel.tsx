@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, ChevronRight, PlayCircle, Wand2, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
+import { Send, Loader2, Bot, ChevronRight, PlayCircle, FileDown, Zap, PenLine, X, MessageSquare, ScanEye } from 'lucide-react';
 import type { Settings } from './SettingsModal';
 
 export interface Message {
@@ -45,12 +45,11 @@ If the user input is short or fragmentary, default to passive mode: brief acknow
 Hold off on writing code for now; the goal is to help them think things through and capture their ideas.
 When they're ready for a plan, put together a clear, comprehensive, step-by-step implementation guide based on everything discussed — covering architecture changes, required components, and logical sequencing.
 When suggesting terminal diagnostics, format each command in its own fenced \`\`\`bash block.
-If you end your response with a direct question and there are likely short answers, append machine-readable quick replies on a new line using this exact format: <quickReplies>["Yes","No"]</quickReplies>.
-Only include 2-4 short reply options, and only when the response ends with a question.`;
+When a short, common user response is likely (including yes/no confirmations, prioritization choices, or whether to run suggested terminal diagnostics), append machine-readable quick replies on a new line using this exact format: <quickReplies>["Yes","No"]</quickReplies>.
+Only include 2-4 short reply options and keep each option under 5 words.`;
 
 const INITIAL_MESSAGE: Message = { role: 'assistant', content: "What do you see in the app?" };
 
-const ACTION_CHIPS = ['Expand', 'Clarify', "What's missing"] as const;
 const SHORT_INPUT_THRESHOLD = 40;
 const QUICK_REPLIES_TAG_REGEX = /<quickReplies>\s*(\[[\s\S]*?\])\s*<\/quickReplies>/i;
 
@@ -58,6 +57,11 @@ const QUICK_REPLIES_TAG_REGEX = /<quickReplies>\s*(\[[\s\S]*?\])\s*<\/quickRepli
 const endsWithQuestion = (content: string): boolean => {
   const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
   return lines.length > 0 && lines[lines.length - 1].endsWith('?');
+};
+
+const containsDiagnosticCommands = (content: string): boolean => {
+  const blockRegex = /```(?:bash|sh|zsh)?\n([\s\S]*?)```/gi;
+  return blockRegex.test(content);
 };
 
 const parseAssistantReply = (rawReply: string): { visibleContent: string; quickReplies: string[] } => {
@@ -78,7 +82,7 @@ const parseAssistantReply = (rawReply: string): { visibleContent: string; quickR
 
     return {
       visibleContent,
-      quickReplies: endsWithQuestion(visibleContent) ? quickReplies : []
+      quickReplies: (endsWithQuestion(visibleContent) || containsDiagnosticCommands(visibleContent)) ? quickReplies : []
     };
   } catch {
     return { visibleContent, quickReplies: [] };
@@ -310,23 +314,9 @@ Format your response with clear headings for each category and bullet points for
               <div className="whitespace-pre-wrap leading-relaxed">{msg.content}</div>
               {msg.role === 'assistant' && i === messages.length - 1 && (
                 <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {ACTION_CHIPS.map(chip => (
-                      <button
-                        key={chip}
-                        onClick={() => handleSend(chip)}
-                        disabled={isTyping}
-                        className="px-2.5 py-1 text-[11px] rounded-full border border-white/10 text-zinc-300 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50 flex items-center gap-1"
-                        title={`Ask AI to ${chip.toLowerCase()}`}
-                      >
-                        <Wand2 className="w-3 h-3" />
-                        {chip}
-                      </button>
-                    ))}
-                  </div>
                   {/* Suggested responses */}
                   <div className="flex flex-wrap gap-1.5">
-                    {endsWithQuestion(msg.content) && (msg.quickReplies || []).map(resp => (
+                    {(msg.quickReplies || []).map(resp => (
                       <button
                         key={resp}
                         onClick={() => handleSend(resp)}
