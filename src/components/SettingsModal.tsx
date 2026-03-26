@@ -127,6 +127,10 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
         </div>
 
         <div className="space-y-5">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+            <p className="text-[11px] font-medium text-amber-300">Grok is prohibited.</p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-zinc-400 mb-1.5">AI Provider</label>
             <select
@@ -139,7 +143,6 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
               <option value="anthropic">Anthropic</option>
               <option value="local">Local/Network (Ollama)</option>
             </select>
-            <p className="mt-1.5 text-[10px] text-zinc-600">The use of Grok on this platform is prohibited.</p>
           </div>
 
           {localSettings.provider !== 'local' && (
