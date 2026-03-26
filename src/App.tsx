@@ -52,8 +52,8 @@ const DEFAULT_CUSTOM_LAYOUT: CustomLayoutConfig = {
 const WIPE_IN_DURATION = 600;
 /** Duration (ms) for the wipe fade-out — must match CSS `animate-wipe-out`. */
 const WIPE_OUT_DURATION = 300;
-/** Minimum Scratch Pad width (px) when Focus Mode is active. */
-const FOCUS_MODE_SCRATCH_MIN_WIDTH = 380;
+/** Minimum Scratch Pad width (px) in Zen layout. */
+const ZEN_LAYOUT_SCRATCH_MIN_WIDTH = 380;
 /** Minimum width (px) for the Preview panel in the standard layout. */
 const PREVIEW_MIN_WIDTH = 300;
 
@@ -116,8 +116,6 @@ export default function App() {
   const [scratchPinned, setScratchPinned] = useState<boolean>(() =>
     sessionStorage.getItem('layout_scratchPinned') === 'true'
   );
-  /** Focus / Zen mode: hides terminal + chat, maximises preview + scratch pad. */
-  const [focusMode, setFocusMode] = useState(false);
   /** When true an intentional-destruction animation is playing. */
   const [isDestroying, setIsDestroying] = useState(false);
   /** Drives the "fade-out" phase of the destruction overlay. */
@@ -408,7 +406,6 @@ export default function App() {
     setIsWelcomeOpen(false);
     // Switch to standard layout so all three tour panels are visible
     setLayoutPreset('standard');
-    setFocusMode(false);
     setTerminalCollapsed(false);
     setChatCollapsed(false);
     setScratchCollapsed(false);
@@ -559,8 +556,6 @@ export default function App() {
     setScratchKey(k => k + 1);
     setScratchPadContent('');
     setStagedNotes('');
-    // Exit focus mode on reset
-    setFocusMode(false);
     // Phase 5: clear evolution snapshots and close export modal on session reset
     setPlanSnapshots([]);
     setIsExportOpen(false);
@@ -1350,15 +1345,6 @@ export default function App() {
 
           <div className="w-px h-5 bg-white/10" />
 
-          {/* Focus / Zen Mode toggle (Phase 1.3) */}
-          <button
-            onClick={() => setFocusMode(f => !f)}
-            className={`p-2 rounded-lg transition-colors ${focusMode ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' : 'text-zinc-400 hover:text-white hover:bg-white/5'}`}
-            title={focusMode ? 'Exit Focus Mode' : 'Focus Mode — hide terminal & chat'}
-          >
-            {focusMode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-          </button>
-
           {/* Layout Switcher */}
           <div className="flex items-center gap-0.5 bg-black/40 rounded-lg p-0.5 border border-white/8">
             <button
@@ -1390,6 +1376,47 @@ export default function App() {
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {layoutPreset === 'custom' && (
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-black/50 border border-white/10">
+              {!customLayoutLocked && (
+                <>
+                  <span className="text-[11px] uppercase tracking-wider text-zinc-500">Columns</span>
+                  <button
+                    onClick={() => setCustomColumnCount(customLayout.columns.length - 1)}
+                    disabled={customLayout.columns.length <= 1}
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Remove a column"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-xs text-zinc-300 tabular-nums min-w-4 text-center">{customLayout.columns.length}</span>
+                  <button
+                    onClick={() => setCustomColumnCount(customLayout.columns.length + 1)}
+                    disabled={customLayout.columns.length >= 4}
+                    className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                    title="Add a column"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setCustomLayout(DEFAULT_CUSTOM_LAYOUT)}
+                    className="ml-1 px-2 py-1 text-[11px] text-zinc-400 hover:text-white hover:bg-white/10 rounded border border-white/10"
+                    title="Reset custom layout"
+                  >
+                    Reset
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setCustomLayoutLocked((prev) => !prev)}
+                className="px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:bg-white/10 rounded border border-white/10"
+                title={customLayoutLocked ? 'Return to edit layout' : 'Lock layout and hide customization controls'}
+              >
+                {customLayoutLocked ? 'Edit layout' : 'Lock layout'}
+              </button>
+            </div>
+          )}
 
           <button 
             onClick={() => setIsSettingsOpen(true)}
@@ -1752,7 +1779,7 @@ export default function App() {
         <main className="flex-1 flex overflow-hidden min-h-0">
           {/* Scratch Pad (left) */}
           <div
-            style={{ width: Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) }}
+            style={{ width: Math.max(scratchWidth, ZEN_LAYOUT_SCRATCH_MIN_WIDTH) }}
             className="flex flex-col border-r border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
           >
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
@@ -1881,44 +1908,6 @@ export default function App() {
 
         /* ── Custom layout ────────────────────────────────────────────────── */
         <main className="flex-1 flex overflow-hidden min-h-0 relative" ref={customLayoutContainerRef}>
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/65 border border-white/10 backdrop-blur-md">
-            {!customLayoutLocked && (
-              <>
-                <span className="text-[11px] uppercase tracking-wider text-zinc-500">Columns</span>
-                <button
-                  onClick={() => setCustomColumnCount(customLayout.columns.length - 1)}
-                  disabled={customLayout.columns.length <= 1}
-                  className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Remove a column"
-                >
-                  <Minus className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-xs text-zinc-300 tabular-nums min-w-4 text-center">{customLayout.columns.length}</span>
-                <button
-                  onClick={() => setCustomColumnCount(customLayout.columns.length + 1)}
-                  disabled={customLayout.columns.length >= 4}
-                  className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="Add a column"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={() => setCustomLayout(DEFAULT_CUSTOM_LAYOUT)}
-                  className="ml-2 px-2 py-1 text-[11px] text-zinc-400 hover:text-white hover:bg-white/10 rounded border border-white/10"
-                  title="Reset custom layout"
-                >
-                  Reset
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => setCustomLayoutLocked((prev) => !prev)}
-              className="ml-1 px-2 py-1 text-[11px] text-zinc-300 hover:text-white hover:bg-white/10 rounded border border-white/10"
-              title={customLayoutLocked ? 'Return to edit layout' : 'Lock layout and hide customization controls'}
-            >
-              {customLayoutLocked ? 'Edit layout' : 'Lock layout'}
-            </button>
-          </div>
           {customLayout.columns.map((col, colIdx) => {
             const visiblePanels = col.panels.filter(p => !p.hidden);
             return (
@@ -2177,7 +2166,7 @@ export default function App() {
         <main className="flex-1 flex overflow-hidden min-h-0">
 
           {/* ── Terminal Panel (left side when terminalSide='left') ──── */}
-          {!focusMode && terminalSide === 'left' && (
+          {terminalSide === 'left' && (
             !terminalCollapsed ? (
               <div
                 data-tour="terminal"
@@ -2233,7 +2222,7 @@ export default function App() {
           )}
 
           {/* Drag divider: Terminal ↔ Preview (left) */}
-          {!focusMode && terminalSide === 'left' && !terminalCollapsed && (
+          {terminalSide === 'left' && !terminalCollapsed && (
             <div
               className="resize-divider w-1 shrink-0 bg-white/4 hover:bg-indigo-500/50 active:bg-indigo-500/70 cursor-col-resize transition-all duration-150 flex items-center justify-center group hover:w-1.5"
               onMouseDown={startDrag('terminal', terminalWidth)}
@@ -2344,8 +2333,7 @@ export default function App() {
           </div>
 
           {/* ── Right panel: Chat + Scratch stacked vertically ───────────────── */}
-          {!focusMode && (
-            <>
+          <>
               {/* Drag divider: Preview ↔ Right Panel */}
               {!(chatCollapsed && scratchCollapsed) && (
                 <div
@@ -2567,11 +2555,10 @@ export default function App() {
                   </>
                 )}
               </div>
-            </>
-          )}
+          </>
 
           {/* ── Terminal Panel (right side when terminalSide='right') ─── */}
-          {!focusMode && terminalSide === 'right' && (
+          {terminalSide === 'right' && (
             <>
               {/* Drag divider: RightPanel ↔ Terminal */}
               {!terminalCollapsed && (
@@ -2634,54 +2621,6 @@ export default function App() {
                 </div>
               )}
             </>
-          )}
-
-          {/* ── Focus mode: Scratch Pad (right) ─────────────────────────── */}
-          {focusMode && (
-            <AnimatePresence mode="wait">
-              {!scratchCollapsed ? (
-                <motion.div
-                  key="scratch-focus"
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 24 }}
-                  transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                  data-tour="scratch"
-                  style={{ width: Math.max(scratchWidth, FOCUS_MODE_SCRATCH_MIN_WIDTH) }}
-                  className="flex flex-col border-l border-white/8 bg-black/40 backdrop-blur-xl shrink-0 overflow-hidden"
-                >
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/8 bg-white/4 shrink-0">
-                    <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider">
-                      <PenLine className="w-3.5 h-3.5 text-amber-400/80" />
-                      <span className="text-amber-300/90">Scratch Pad</span>
-                    </div>
-                    <div className="flex items-center gap-0.5">
-                      <button onClick={() => { if (!scratchPinned) setScratchCollapsed(true); }} className={`p-1 transition-colors ${scratchPinned ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Pinned open' : 'Collapse'}>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => setScratchPinned(p => !p)} className={`p-1 transition-colors ${scratchPinned ? 'text-amber-400 hover:text-amber-300' : 'text-zinc-600 hover:text-zinc-300'}`} title={scratchPinned ? 'Unpin' : 'Pin'}>
-                        {scratchPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-                  <ScratchPad resetKey={scratchKey} value={scratchPadContent} onChange={setScratchPadContent} onStageNotes={handleStageNotes} />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="scratch-focus-collapsed"
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 8 }}
-                  transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-                  className={`${collapsedTab} w-8 border-l border-white/8 py-3 gap-2`}
-                >
-                  <button onClick={() => setScratchCollapsed(false)} className="p-1 text-zinc-600 hover:text-amber-400 transition-colors" title="Expand scratch pad">
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </button>
-                  <span className={`${collapsedLabel} text-amber-900/60`} style={{ writingMode: 'vertical-rl' }}>Notes</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
           )}
 
         </main>
