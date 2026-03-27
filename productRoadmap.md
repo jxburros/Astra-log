@@ -87,6 +87,10 @@ Post-1.0 development focuses on expanding the "Universal Bridge" to every major 
 - [ ] **Technical Knowledge Repository**: A curated library of internal documentation and style guides that the AI consultant references as its primary source of truth.
 - [ ] **Side-by-Side Project Ingestion**: Update the layout engine to support two concurrent WebContainer instances for version or architecture comparison.
 
+### Goal 4: Snapshots and Visual Processing
+- [ ] **Add the ability to take screenshots of preview**
+- [ ] **Give AI visual processing power**
+- [ ] **Intelligently determine if attached AI has visual processing**
 ---
 
 ## The Idealized Future
