@@ -1,6 +1,12 @@
 # Changelog
 
 ## 2026-03-26 - GitHub Copilot
+- Fixed drag-to-resize columns continuing after mouse release: added `.dragging-panel iframe { pointer-events: none }` CSS rule so iframe panels no longer swallow the `mouseup` event when the cursor crosses into them during a drag.
+- Made the AI Brainstorming (ChatPanel) component responsive to narrow widths: uses a `ResizeObserver` to detect its own width and switches to compact icon-only mode below 280 px, hiding text labels from the header and footer action buttons while preserving hover tooltips (`title` attributes) as alt text.
+- Removed duplicate "show panel" buttons in the custom layout: per-column hidden-panel restore buttons were appearing simultaneously with the global "Minimized" bar at the bottom of the layout. The per-column buttons have been removed; the consolidated global bar remains.
+- Added `min-w-0` to the ChatPanel root element to prevent flex overflow in tight column layouts.
+
+## 2026-03-26 - GitHub Copilot
 - Created `src/lib/aiClient.ts`: unified AI client that detects Tauri desktop runtime (`window.__TAURI__` / `window.__TAURI_INTERNALS__`) and makes direct calls to OpenAI, Anthropic, Gemini, and Ollama APIs; falls back to the Express proxy server in the browser version.
 - Updated `src/components/SettingsModal.tsx` to use `fetchModels` from `aiClient.ts`, fixing model discovery in the desktop app.
 - Updated `src/components/ChatPanel.tsx` to use `sendChat` from `aiClient.ts`, fixing AI chat in the desktop app.

@@ -190,6 +190,11 @@ body {
   cursor: col-resize !important;
 }
 
+/* ── Disable iframe pointer capture during drag (prevents mouseup being swallowed) */
+.dragging-panel iframe {
+  pointer-events: none !important;
+}
+
 /* ── Global interaction smoothing ─────────────────────────────────────────────── */
 button, a, input, select, textarea, label {
   transition-property: color, background-color, border-color, opacity, box-shadow, transform, filter;
