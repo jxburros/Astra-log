@@ -5,13 +5,15 @@ export interface ParsedZip {
   tree: FileSystemTree;
   packageJson: string | null;
   readme: string | null;
+  /** Path within the tree where the actual application root lives, or null if at the top level. */
+  appRoot: string | null;
+  /** Detected project type based on file structure. */
+  projectType: 'node' | 'static' | 'unknown';
 }
 
 export async function parseZipToTree(file: File): Promise<ParsedZip> {
   const zip = await JSZip.loadAsync(file);
   const tree: FileSystemTree = {};
-  let packageJson: string | null = null;
-  let readme: string | null = null;
 
   // Find the root folder name if everything is nested under one folder (typical for GitHub zips)
   const files = Object.values(zip.files).filter(f => !f.dir);
@@ -27,10 +29,17 @@ export async function parseZipToTree(file: File): Promise<ParsedZip> {
     }
   }
 
+  // Collect candidates across all depths for app root detection
+  const packageJsonCandidates: { path: string; content: string }[] = [];
+  const indexHtmlCandidates: { path: string }[] = [];
+  const readmeCandidates: { path: string; content: string }[] = [];
+
   for (const zipEntry of files) {
     const relativePath = zipEntry.name.startsWith(rootPrefix)
       ? zipEntry.name.substring(rootPrefix.length)
       : zipEntry.name;
+
+    if (!relativePath) continue;
 
     const parts = relativePath.split('/');
     let currentLevel: any = tree;
@@ -45,13 +54,13 @@ export async function parseZipToTree(file: File): Promise<ParsedZip> {
             contents: content
           }
         };
-        // Capture root-level package.json and README.md text for metadata extraction
-        if (parts.length === 1) {
-          if (part === 'package.json') {
-            packageJson = new TextDecoder().decode(content);
-          } else if (/^readme\.md$/i.test(part)) {
-            readme = new TextDecoder().decode(content);
-          }
+        // Collect metadata candidates for app root detection at any depth
+        if (part === 'package.json') {
+          packageJsonCandidates.push({ path: relativePath, content: new TextDecoder().decode(content) });
+        } else if (part === 'index.html') {
+          indexHtmlCandidates.push({ path: relativePath });
+        } else if (/^readme\.md$/i.test(part)) {
+          readmeCandidates.push({ path: relativePath, content: new TextDecoder().decode(content) });
         }
       } else {
         // It's a directory
@@ -62,7 +71,57 @@ export async function parseZipToTree(file: File): Promise<ParsedZip> {
       }
     }
   }
-  return { tree, packageJson, readme };
+
+  // Determine appRoot and projectType from the shallowest detected candidate
+  const depthOf = (p: string) => p.split('/').length;
+  const dirOf = (p: string): string | null => {
+    const segs = p.split('/');
+    return segs.length > 1 ? segs.slice(0, -1).join('/') : null;
+  };
+
+  let appRoot: string | null = null;
+  let projectType: 'node' | 'static' | 'unknown' = 'unknown';
+  let packageJson: string | null = null;
+  let readme: string | null = null;
+
+  if (packageJsonCandidates.length > 0) {
+    // Node project: pick the shallowest package.json as the app root
+    packageJsonCandidates.sort((a, b) => depthOf(a.path) - depthOf(b.path));
+    const best = packageJsonCandidates[0];
+    appRoot = dirOf(best.path);
+    projectType = 'node';
+    packageJson = best.content;
+    // Find README at the same directory level as the detected app root
+    const appRootStr = appRoot ?? '';
+    const readmeAtRoot = readmeCandidates.find(r => (dirOf(r.path) ?? '') === appRootStr);
+    readme = readmeAtRoot?.content ?? null;
+  } else if (indexHtmlCandidates.length > 0) {
+    // Static project: pick the shallowest index.html as the app root
+    indexHtmlCandidates.sort((a, b) => depthOf(a.path) - depthOf(b.path));
+    const best = indexHtmlCandidates[0];
+    appRoot = dirOf(best.path);
+    projectType = 'static';
+  }
+
+  return { tree, packageJson, readme, appRoot, projectType };
+}
+
+/**
+ * Extracts the sub-tree rooted at `appRoot` from a FileSystemTree.
+ * Falls back to the full tree if the path cannot be resolved.
+ */
+export function extractSubtree(tree: FileSystemTree, appRoot: string): FileSystemTree {
+  const parts = appRoot.split('/');
+  let current: FileSystemTree = tree;
+  for (const part of parts) {
+    const node = current[part];
+    if (node && 'directory' in node) {
+      current = node.directory as FileSystemTree;
+    } else {
+      return tree; // fallback to full tree
+    }
+  }
+  return current;
 }
 
 /** Returns the list of script names defined in a package.json string. */
@@ -111,7 +170,10 @@ export function extractCommandsFromReadme(content: string): string[] {
 }
 
 /**
- * Builds the ordered list of boot commands following the 4-tier hierarchy:
+ * Builds the ordered list of boot commands following the tiered hierarchy:
+ *   Tier 0 – Static project: serve files with `npx -y serve .`
+ *             (`-y` auto-confirms the one-time npx package download prompt so
+ *             the server starts without requiring user interaction in the terminal)
  *   Tier 1 – npm run dev (standard default)
  *   Tier 2 – Commands extracted from README
  *   Tier 3 – npm run start → npm run serve → npm run <first script>
@@ -119,8 +181,14 @@ export function extractCommandsFromReadme(content: string): string[] {
  */
 export function buildBootCommands(
   packageJsonScripts: string[],
-  readmeCommands: string[]
+  readmeCommands: string[],
+  projectType: 'node' | 'static' | 'unknown' = 'node'
 ): string[] {
+  // Tier 0: Static project — serve files directly, no install needed
+  if (projectType === 'static') {
+    return ['npx -y serve .'];
+  }
+
   const commands: string[] = [];
 
   // Tier 1

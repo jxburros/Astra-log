@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-03-30 - GitHub Copilot
+- **Non-standard project support** (`src/lib/zipParser.ts`, `src/App.tsx`): ZIP parsing now performs a deep traversal to detect the actual application root and project type (`node` / `static` / `unknown`) instead of assuming the project root is always the top level of the archive.
+- `ParsedZip` interface extended with `appRoot: string | null` and `projectType: 'node' | 'static' | 'unknown'` fields.
+- `parseZipToTree` now locates the shallowest `package.json` (Node project) or `index.html` (static project) across all depths, resolves the containing directory as `appRoot`, and reads `package.json`/`README.md` from that directory rather than only from the archive root.
+- Added `extractSubtree` helper to `zipParser.ts` that slices a `FileSystemTree` at a given path, enabling WebContainer to mount only the detected app subtree.
+- `buildBootCommands` now accepts an optional `projectType` parameter and returns `['npx -y serve .']` as **Tier 0** for static projects, bypassing the Node-oriented boot hierarchy.
+- `processZipFile` in `App.tsx` now: (1) mounts the `appRoot` subtree instead of the full tree for nested/monorepo projects; (2) skips `npm install` for static projects; (3) shows a clear "No valid project entry point detected" error for unknown structures while still leaving the interactive terminal available; (4) logs the detected project type and app root to the terminal on startup.
+- Updated `README.md` feature list to document static and nested-project support.
+
 ## 2026-03-26 - GitHub Copilot
 - Fixed drag-to-resize columns continuing after mouse release: added `.dragging-panel iframe { pointer-events: none }` CSS rule so iframe panels no longer swallow the `mouseup` event when the cursor crosses into them during a drag.
 - Made the AI Brainstorming (ChatPanel) component responsive to narrow widths: uses a `ResizeObserver` to detect its own width and switches to compact icon-only mode below 280 px, hiding text labels from the header and footer action buttons while preserving hover tooltips (`title` attributes) as alt text.
