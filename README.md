@@ -10,7 +10,11 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 
 ## Features
 
-- **Zip upload** — drag-and-drop or click to upload a Node.js project zip; `npm install && npm run dev` runs automatically inside the WebContainer
+- **Zip upload** — drag-and-drop or click to upload a project zip; the engine automatically detects the project type and app root:
+  - **Node projects** — `npm install` then the best available start script run automatically inside the WebContainer
+  - **Static projects** — no `package.json` but an `index.html` is found; files are served directly with `npx serve` (no install step)
+  - **Nested / monorepo roots** — when the actual app lives in a sub-folder (e.g. `/frontend`, `/app`) the correct subtree is mounted and used as the working directory
+  - **GitHub-style wrapper folders** are stripped automatically so the project runs without extra manual steps
 - **Containment Scan** — before `npm install`, the project's `package.json` is automatically scanned for suspicious lifecycle hooks, dangerous script patterns (eval, curl, remote shell downloads), and non-registry dependencies; results are shown as Safe / Warning / High Risk in a clear modal — the user must confirm before install proceeds
 - **Permission System** — AI-suggested terminal commands are presented in a dedicated confirmation dialog (not a browser `window.confirm`) showing the exact command in a code block before it is allowed to execute
 - **Sandboxed Preview** — the preview iframe is hardened with `sandbox` restrictions that block top-navigation and other privileged operations, isolating the running app from the main workspace UI

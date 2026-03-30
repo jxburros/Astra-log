@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { WebContainer } from '@webcontainer/api';
 import { Terminal } from 'xterm';
 import { Upload, RefreshCw, AlertCircle, ExternalLink, Terminal as TerminalIcon, Globe, Settings as SettingsIcon, Smartphone, Tablet, Monitor, FolderOpen, PenLine, Eye, EyeOff, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, GripVertical, GripHorizontal, Pin, PinOff, LayoutDashboard, PanelBottom, Maximize2, HelpCircle, LayoutGrid, Minus, Plus } from 'lucide-react';
-import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands } from './lib/zipParser';
+import { parseZipToTree, parsePackageJsonScripts, extractCommandsFromReadme, buildBootCommands, extractSubtree } from './lib/zipParser';
 import { scanPackageJson } from './lib/containmentScan';
 import type { ScanResult } from './lib/containmentScan';
 import { buildExportArtifact, generateAIExportArtifact } from './lib/exportUtils';
@@ -800,7 +800,7 @@ export default function App() {
       setStatus('uploading');
       writeToTerminal(`\r\n\x1b[34m[System]\x1b[0m Parsing zip file: ${file.name}...\r\n`);
 
-      const { tree, packageJson, readme } = await parseZipToTree(file);
+      const { tree, packageJson, readme, appRoot, projectType } = await parseZipToTree(file);
       if (!isCurrentSession()) return;
 
       // Reset boot tracking for this new session
@@ -810,6 +810,7 @@ export default function App() {
       setTroubleshootRequest(null);
 
       writeToTerminal(`\x1b[32m[System]\x1b[0m Zip parsed successfully.\r\n`);
+      writeToTerminal(`\x1b[34m[System]\x1b[0m Project type: ${projectType}${appRoot ? ` (app root: ${appRoot})` : ''}.\r\n`);
 
       // Reset chat for the new project session
       setChatKey(k => k + 1);
@@ -817,7 +818,7 @@ export default function App() {
       // Build the multi-tier boot command hierarchy from metadata
       const scripts = parsePackageJsonScripts(packageJson || '');
       const readmeCmds = extractCommandsFromReadme(readme || '');
-      const bootCmds = buildBootCommands(scripts, readmeCmds);
+      const bootCmds = buildBootCommands(scripts, readmeCmds, projectType);
 
       setStatus('booting');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Booting WebContainer environment...\r\n`);
@@ -842,7 +843,9 @@ export default function App() {
       }
       if (!isCurrentSession()) return;
 
-      await wc.mount(tree);
+      // Mount the detected app root subtree (or full tree if at top level)
+      const mountTree = appRoot ? extractSubtree(tree, appRoot) : tree;
+      await wc.mount(mountTree);
       if (!isCurrentSession()) return;
 
       writeToTerminal(`\x1b[32m[System]\x1b[0m Files mounted.\r\n`);
@@ -887,8 +890,16 @@ export default function App() {
       const writer = shellProcess.input.getWriter();
       shellWriterRef.current = writer;
 
-      // ── Phase 4.1: Containment scan ─────────────────────────────────────
-      if (packageJson) {
+      // ── Unknown project type: no recognised entry point ──────────────────
+      if (projectType === 'unknown') {
+        setStatus('error');
+        setErrorMsg('No valid project entry point detected — no package.json or index.html found.');
+        writeToTerminal('\r\n\x1b[31m[System]\x1b[0m No valid project entry point detected. Upload a project with a package.json or index.html. You can still use the interactive terminal.\r\n');
+        return;
+      }
+
+      // ── Phase 4.1: Containment scan (Node projects only) ─────────────────
+      if (projectType === 'node' && packageJson) {
         const scanResult = scanPackageJson(packageJson);
         if (scanResult.level !== 'safe') {
           writeToTerminal(`\x1b[33m[Security]\x1b[0m Containment scan: ${scanResult.level} — awaiting your decision...\r\n`);
@@ -904,28 +915,33 @@ export default function App() {
         }
       }
 
-      // Install dependencies via a dedicated process so we can await completion
-      setStatus('installing');
-      writeToTerminal(`\x1b[34m[System]\x1b[0m Installing dependencies...\r\n`);
+      if (projectType === 'node') {
+        // Install dependencies via a dedicated process so we can await completion
+        setStatus('installing');
+        writeToTerminal(`\x1b[34m[System]\x1b[0m Installing dependencies...\r\n`);
 
-      const installProc = await wc.spawn('npm', ['install']);
-      installProc.output.pipeTo(new WritableStream({
-        write(data) { writeToTerminal(data); }
-      }));
-      const installExit = await installProc.exit;
-      // Session check after awaiting exit: the install has already completed, so
-      // there is nothing to kill — we just skip the rest of the boot sequence.
-      if (!isCurrentSession()) return;
+        const installProc = await wc.spawn('npm', ['install']);
+        installProc.output.pipeTo(new WritableStream({
+          write(data) { writeToTerminal(data); }
+        }));
+        const installExit = await installProc.exit;
+        // Session check after awaiting exit: the install has already completed, so
+        // there is nothing to kill — we just skip the rest of the boot sequence.
+        if (!isCurrentSession()) return;
 
-      if (installExit !== 0) {
-        setStatus('error');
-        setErrorMsg('npm install ran into some issues — check the terminal for details.');
-        writeToTerminal('\r\n\x1b[31m[System]\x1b[0m npm install failed — check above for details.\r\n');
-        return;
+        if (installExit !== 0) {
+          setStatus('error');
+          setErrorMsg('npm install ran into some issues — check the terminal for details.');
+          writeToTerminal('\r\n\x1b[31m[System]\x1b[0m npm install failed — check above for details.\r\n');
+          return;
+        }
+        writeToTerminal(`\x1b[32m[System]\x1b[0m Dependencies installed.\r\n`);
+      } else {
+        // Static project: skip npm install, serve files directly
+        writeToTerminal(`\x1b[34m[System]\x1b[0m Static project detected — skipping npm install.\r\n`);
       }
-      writeToTerminal(`\x1b[32m[System]\x1b[0m Dependencies installed.\r\n`);
 
-      // Attempt boot commands following the multi-tier hierarchy (Tiers 1–4)
+      // Attempt boot commands following the multi-tier hierarchy (Tiers 0–4)
       setStatus('starting');
       await runBootHierarchy(wc, bootCmds, packageJson, isCurrentSession);
 
