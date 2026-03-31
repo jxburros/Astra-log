@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-03-31 - GitHub Copilot
+- **Installer Wizard Customization**: Fully branded the Tauri/NSIS desktop installation wizard to match Astra/log's visual identity.
+  - Created `src-tauri/installer/sidebar.bmp` (164×314 px) — dark near-black background with indigo-to-fuchsia gradient accent strip and subtle shimmer header zone, matching the app's `--astra-bg` / `--astra-accent-*` color palette.
+  - Created `src-tauri/installer/header.bmp` (150×57 px) — dark background with gradient bottom border and right-side accent strip matching app brand colors.
+  - Created `src-tauri/installer/license.rtf` — combined Terms of Service & SAL v1.3 License Agreement in RTF format; NSIS displays this on a dedicated acknowledgment page that requires the user to accept before installation proceeds.
+  - Updated `src-tauri/tauri.conf.json`: added `bundle.windows.nsis` section (`license`, `headerImage`, `sidebarImage`, `installerIcon`, `installMode`, `shortcutsDefaultChecked`), publisher/copyright/category/description metadata, and `bundle.macOS.dmg` window-size hint.
+
 ## 2026-03-30 - GitHub Copilot
 - **Non-standard project support** (`src/lib/zipParser.ts`, `src/App.tsx`): ZIP parsing now performs a deep traversal to detect the actual application root and project type (`node` / `static` / `unknown`) instead of assuming the project root is always the top level of the archive.
 - `ParsedZip` interface extended with `appRoot: string | null` and `projectType: 'node' | 'static' | 'unknown'` fields.
