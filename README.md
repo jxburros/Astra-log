@@ -140,6 +140,14 @@ npm run desktop:build
 
 The generated desktop bundles/installers will be created under `src-tauri/target/release/bundle/`.
 
+#### Installer Branding (Windows NSIS)
+
+The Windows installer is fully customized to match the Astra/log visual identity:
+
+- **Logo & colors** — `src-tauri/installer/sidebar.bmp` (164×314 px) appears on the Welcome/Finish pages with the app's dark background and indigo-to-fuchsia gradient accent; `src-tauri/installer/header.bmp` (150×57 px) appears in the installer header bar.
+- **Terms of Service + License acknowledgment** — the installer shows a dedicated page (`src-tauri/installer/license.rtf`) with the full Terms of Service and SAL v1.3 License Agreement. The user must click **I Agree** before installation continues.
+- **Publisher metadata** — the installer carries `"JX Holdings, LLC"` as publisher and the full copyright notice.
+
 ### Run in desktop dev mode
 
 ```bash

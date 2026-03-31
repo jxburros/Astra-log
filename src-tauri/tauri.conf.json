@@ -20,6 +20,29 @@
       "icons/128x128.png",
       "icons/icon.ico",
       "icons/icon.icns"
-    ]
+    ],
+    "publisher": "JX Holdings, LLC",
+    "copyright": "Copyright © 2026 Jeffrey Guntly & JX Holdings, LLC. All Rights Reserved.",
+    "category": "DeveloperTool",
+    "shortDescription": "Transient Workspace for rapid web-app exploration and AI-assisted planning",
+    "longDescription": "Astra/log is a sandboxed, zero-persistence development workspace. Upload a ZIP of your project, run it instantly inside a WebContainer, and collaborate with an AI technical consultant — all without anything ever leaving your machine.",
+    "windows": {
+      "nsis": {
+        "license": "installer/license.rtf",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "shortcutsDefaultChecked": true,
+        "displayLanguageSelector": false
+      }
+    },
+    "macOS": {
+      "dmg": {
+        "background": null,
+        "windowSize": { "width": 660, "height": 400 }
+      },
+      "minimumSystemVersion": "10.15"
+    }
   }
 }
