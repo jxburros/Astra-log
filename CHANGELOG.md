@@ -221,3 +221,8 @@
 - Completed a general app health pass by running TypeScript and production build checks, then validating desktop build behavior.
 - Updated `ExportModal.tsx` so PDF export is disabled only in Tauri desktop with a visible `PDF (Coming Soon)` button state; web keeps active PDF export.
 - Updated `README.md` export and desktop notes to document that desktop PDF export is currently marked Coming Soon while other formats remain available.
+
+## 2026-03-31 - Codex
+- Fixed Tauri NSIS schema validation in `src-tauri/tauri.conf.json` by moving installer license path from `bundle.windows.nsis.license` to supported top-level `bundle.licenseFile`.
+- Removed unsupported NSIS key `shortcutsDefaultChecked` from `src-tauri/tauri.conf.json` so `bundle > windows > nsis` matches Tauri v2 schema.
+- Updated `README.md` troubleshooting with guidance for the NSIS `anyOf` schema error and the required Tauri v2 key changes.
