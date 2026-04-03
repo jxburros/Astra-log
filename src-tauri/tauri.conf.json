@@ -36,7 +36,10 @@
         "sidebarImage": "installer/sidebar.bmp",
         "installerIcon": "icons/icon.ico",
         "installMode": "currentUser",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Astra-log",
+        "installerHooks": "installer/installer_hooks.nsh",
+        "allowDowngrades": true
       }
     },
     "macOS": {
