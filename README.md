@@ -131,7 +131,8 @@ Note: PDF artifact export is currently disabled on desktop and shown as **Coming
 - If you see `failed to run 'cargo metadata' ... program not found`, Cargo is not installed or not on your PATH. Reopen your terminal after installing Rust and run `cargo --version`.
 - If dev startup fails with `Cannot find module '../lightningcss.win32-x64-msvc.node'` (or another `lightningcss.*.node` variant), run `npm run dev` again after a fresh `npm install`. The app now runs a preflight check that installs the matching platform `lightningcss` binary automatically when npm skips optional dependencies.
 - If Tauri build fails with a schema error like `"tauri.conf.json" error on \`productName\``, ensure `src-tauri/tauri.conf.json` uses `"productName": "Astra-log"` (slashes are invalid in Tauri product names).
-- If Tauri build fails with `"tauri.conf.json" error on `bundle > windows > nsis`: ... not valid under any of the schemas listed in the "anyOf" keyword`, remove unsupported NSIS keys (for Tauri v2, move installer terms from `bundle.windows.nsis.license` to `bundle.licenseFile`, and remove invalid keys like `shortcutsDefaultChecked`).
+- If Tauri build fails with `"tauri.conf.json" error on `bundle > windows > nsis`: ... not valid under any of the schemas listed in the "anyOf" keyword`, remove unsupported NSIS keys. In Tauri v2, keep `allowDowngrades` under `bundle.windows` (not `bundle.windows.nsis`), move installer terms from `bundle.windows.nsis.license` to `bundle.licenseFile`, and remove invalid keys like `shortcutsDefaultChecked`.
+- If Tauri CLI reports `Found version mismatched Tauri packages`, align each `@tauri-apps/*` npm package to the same major/minor as its Rust crate counterpart (for example `tauri-plugin-dialog` 2.7.x with `@tauri-apps/plugin-dialog` 2.7.x).
 
 ### Build the desktop app
 

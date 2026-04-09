@@ -226,3 +226,12 @@
 - Fixed Tauri NSIS schema validation in `src-tauri/tauri.conf.json` by moving installer license path from `bundle.windows.nsis.license` to supported top-level `bundle.licenseFile`.
 - Removed unsupported NSIS key `shortcutsDefaultChecked` from `src-tauri/tauri.conf.json` so `bundle > windows > nsis` matches Tauri v2 schema.
 - Updated `README.md` troubleshooting with guidance for the NSIS `anyOf` schema error and the required Tauri v2 key changes.
+
+## 2026-04-09 - Codex
+- Fixed Tauri NSIS schema validation by moving `allowDowngrades` from `bundle.windows.nsis` to supported `bundle.windows.allowDowngrades` in `src-tauri/tauri.conf.json`.
+- Updated `README.md` troubleshooting to document that `allowDowngrades` must be configured at `bundle.windows` for Tauri v2.
+
+## 2026-04-09 - Codex
+- Aligned Tauri plugin package versions by updating `@tauri-apps/plugin-dialog` to `^2.7.0` and `@tauri-apps/plugin-fs` to `^2.5.0` in `package.json`/`package-lock.json`, matching detected Rust crate versions during desktop build checks.
+- Updated `README.md` troubleshooting with guidance for the Tauri "version mismatched packages" error.
+- Blocked/incomplete: full desktop build could not complete in this Linux container because `glib-2.0` development libraries are missing.

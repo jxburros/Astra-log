@@ -38,9 +38,9 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false,
         "startMenuFolder": "Astra-log",
-        "installerHooks": "installer/installer_hooks.nsh",
-        "allowDowngrades": true
-      }
+        "installerHooks": "installer/installer_hooks.nsh"
+      },
+      "allowDowngrades": true
     },
     "macOS": {
       "dmg": {
