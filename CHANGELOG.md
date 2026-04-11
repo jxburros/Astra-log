@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-04-11 - GitHub Copilot
+- **Fix installer license/TOS readability**: Changed RTF color index 1 (the default/reset text color) in `src-tauri/installer/license.rtf` from white (`#FFFFFF`) to near-black (`#1E1E1E`). The NSIS installer renders the license page on a white background, so white text was completely invisible. Also slightly darkened the muted-gray color (index 5) for adequate contrast on white.
+
 ## 2026-03-31 - GitHub Copilot
 - **Installer Wizard Customization**: Fully branded the Tauri/NSIS desktop installation wizard to match Astra/log's visual identity.
   - Created `src-tauri/installer/sidebar.bmp` (164×314 px) — dark near-black background with indigo-to-fuchsia gradient accent strip and subtle shimmer header zone, matching the app's `--astra-bg` / `--astra-accent-*` color palette.
