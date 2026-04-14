@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-04-14 - GitHub Copilot
+- **Fix: loading new zip files broken after pressing New Project** (`src/App.tsx`):
+  - **Containment scan modal not dismissed on reset**: `handleStartOver` now cancels the pending `scanResolveRef` promise (resolves `false`) and clears `scanModalResult`. Previously the `ContainmentScanModal` (which uses `fixed inset-0 z-50`) persisted after New Project was pressed mid-scan, blocking all further user interaction including the Upload Zip button and drag-and-drop zone.
+  - **Permission dialog not dismissed on reset**: Same fix applied to `permissionResolveRef` / `pendingCommand`.
+  - **npm install process not killed on reset**: Added `installProcRef` to track the in-progress `npm install` process. `handleStartOver` now kills it if it is still running, preventing concurrent filesystem writes that could corrupt the next session's file-clearing and mount steps.
+  - **File clearing aborted on first error**: Changed `Promise.all` to a sequential `for` loop so that one failing `wc.fs.rm` call (e.g. a locked file inside `node_modules`) no longer prevents the remaining top-level entries from being deleted.
+  - **`isDragging` not reset on New Project**: `setIsDragging(false)` is now called in `handleStartOver` to prevent a stuck drag overlay.
+
 ## 2026-04-11 - GitHub Copilot
 - **Fix installer license/TOS readability**: Changed RTF color index 1 (the default/reset text color) in `src-tauri/installer/license.rtf` from white (`#FFFFFF`) to near-black (`#1E1E1E`). The NSIS installer renders the license page on a white background, so white text was completely invisible. Also slightly darkened the muted-gray color (index 5) for adequate contrast on white.
 

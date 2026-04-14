@@ -217,6 +217,8 @@ export default function App() {
   const serverReadyUnsubscribeRef = useRef<(() => void) | null>(null);
   /** Tracks the currently-running boot process so it can be killed on reset. */
   const currentBootProcRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
+  /** Tracks the in-progress npm install process so it can be killed on reset. */
+  const installProcRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
   /** Set to true as soon as the server-ready event fires for the active session. */
   const bootSucceededRef = useRef<boolean>(false);
   /** Rolling buffer of the last 5 000 chars of terminal output for AI context. */
@@ -553,6 +555,12 @@ export default function App() {
       currentBootProcRef.current = null;
     }
 
+    // Kill any in-progress npm install so it does not interfere with the next session
+    if (installProcRef.current) {
+      try { installProcRef.current.kill(); } catch (e) { console.warn('Failed to kill install process:', e); }
+      installProcRef.current = null;
+    }
+
     // Kill the running shell process
     if (shellProcessRef.current) {
       try { shellProcessRef.current.kill(); } catch (e) { console.warn('Failed to kill shell process:', e); }
@@ -565,6 +573,21 @@ export default function App() {
       shellWriterRef.current = null;
     }
 
+    // Dismiss any open containment-scan modal so it does not block the next upload.
+    // Cancel the pending promise so the stale processZipFile call can exit cleanly.
+    if (scanResolveRef.current) {
+      scanResolveRef.current(false);
+      scanResolveRef.current = null;
+    }
+    setScanModalResult(null);
+
+    // Dismiss any open permission dialog for the same reason.
+    if (permissionResolveRef.current) {
+      permissionResolveRef.current(false);
+      permissionResolveRef.current = null;
+    }
+    setPendingCommand(null);
+
     // Clear the terminal and show the welcome message
     if (terminalRef.current) {
       terminalRef.current.clear();
@@ -576,6 +599,7 @@ export default function App() {
     terminalOutputBufferRef.current = '';
 
     // Reset all state
+    setIsDragging(false);
     setStatus('idle');
     setErrorMsg('');
     setPreviewUrl(null);
@@ -834,12 +858,20 @@ export default function App() {
       setStatus('mounting');
       writeToTerminal(`\x1b[34m[System]\x1b[0m Mounting files...\r\n`);
 
-      // Clear any files from a previous project before mounting the new tree
+      // Clear any files from a previous project before mounting the new tree.
+      // Delete entries sequentially so that one failure (e.g. a locked file) does
+      // not prevent the remaining entries from being removed.
       try {
         const existingEntries = await wc.fs.readdir('.');
-        await Promise.all(existingEntries.map(entry => wc.fs.rm(entry, { recursive: true })));
+        for (const entry of existingEntries) {
+          try {
+            await wc.fs.rm(entry, { recursive: true });
+          } catch (e) {
+            console.warn(`Failed to remove ${entry}:`, e);
+          }
+        }
       } catch (e) {
-        console.warn('Failed to clear previous project files:', e);
+        console.warn('Failed to read project directory for cleanup:', e);
       }
       if (!isCurrentSession()) return;
 
@@ -921,10 +953,12 @@ export default function App() {
         writeToTerminal(`\x1b[34m[System]\x1b[0m Installing dependencies...\r\n`);
 
         const installProc = await wc.spawn('npm', ['install']);
+        installProcRef.current = installProc;
         installProc.output.pipeTo(new WritableStream({
           write(data) { writeToTerminal(data); }
         }));
         const installExit = await installProc.exit;
+        installProcRef.current = null;
         // Session check after awaiting exit: the install has already completed, so
         // there is nothing to kill — we just skip the rest of the boot sequence.
         if (!isCurrentSession()) return;
