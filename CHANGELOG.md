@@ -1,6 +1,11 @@
 # Changelog
 
 ## 2026-04-14 - GitHub Copilot
+- **Fix: Terminal stuck at "Booting…" / zip never loads** (`src/App.tsx`, `vite.config.ts`):
+  - **Root cause — double `WebContainer.boot()` call**: `WebContainer.boot()` must only be called once per page load. If called a second time (e.g. when a new zip is uploaded while a previous boot is still in-flight after clicking "New Project"), the second call returns a Promise that never resolves, permanently hanging the "Booting…" phase. Fixed by introducing `webcontainerBootPromiseRef` that stores the single in-flight boot promise; any concurrent `processZipFile` call awaits the same promise instead of triggering a new boot. If boot fails, the ref is cleared so the user can retry.
+  - **Missing COOP/COEP headers in `vite.config.ts`**: Added `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` to the Vite dev server `headers` config. `server.ts` already sets these headers via Express middleware for the production/`npm run dev` path; adding them to `vite.config.ts` ensures cross-origin isolation is also enforced when using `vite dev` directly, preventing a secondary cause of `WebContainer.boot()` hanging in that scenario.
+
+## 2026-04-14 - GitHub Copilot
 - **Fix: loading new zip files broken after pressing New Project** (`src/App.tsx`):
   - **Containment scan modal not dismissed on reset**: `handleStartOver` now cancels the pending `scanResolveRef` promise (resolves `false`) and clears `scanModalResult`. Previously the `ContainmentScanModal` (which uses `fixed inset-0 z-50`) persisted after New Project was pressed mid-scan, blocking all further user interaction including the Upload Zip button and drag-and-drop zone.
   - **Permission dialog not dismissed on reset**: Same fix applied to `permissionResolveRef` / `pendingCommand`.

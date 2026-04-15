@@ -212,6 +212,14 @@ export default function App() {
   
   const terminalRef = useRef<Terminal | null>(null);
   const webcontainerRef = useRef<WebContainer | null>(null);
+  /**
+   * Holds the single in-flight (or already-resolved) WebContainer.boot() promise.
+   * WebContainer.boot() must only be called once per page load; a second call returns
+   * a Promise that never resolves, permanently hanging the "Booting…" phase.
+   * Storing the promise here ensures all concurrent processZipFile calls await the
+   * same boot rather than triggering a second, stuck boot.
+   */
+  const webcontainerBootPromiseRef = useRef<Promise<WebContainer> | null>(null);
   const shellWriterRef = useRef<WritableStreamDefaultWriter<string> | null>(null);
   const shellProcessRef = useRef<Awaited<ReturnType<WebContainer['spawn']>> | null>(null);
   const serverReadyUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -848,7 +856,20 @@ export default function App() {
       writeToTerminal(`\x1b[34m[System]\x1b[0m Booting WebContainer environment...\r\n`);
 
       if (!webcontainerRef.current) {
-        webcontainerRef.current = await WebContainer.boot();
+        // Start boot only once; reuse the in-flight promise if boot is already underway.
+        // A second call to WebContainer.boot() returns a promise that never resolves,
+        // which is what causes the terminal to hang at "Booting…" when a new project
+        // is loaded before the previous boot has completed.
+        if (!webcontainerBootPromiseRef.current) {
+          webcontainerBootPromiseRef.current = WebContainer.boot();
+        }
+        try {
+          webcontainerRef.current = await webcontainerBootPromiseRef.current;
+        } catch (bootErr) {
+          // Reset so a future session can retry booting.
+          webcontainerBootPromiseRef.current = null;
+          throw bootErr;
+        }
       }
       if (!isCurrentSession()) return;
 
