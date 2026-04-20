@@ -8,6 +8,8 @@
     "clean": "rm -rf dist",
     "desktop:build": "npx tauri build",
     "desktop:dev": "npx tauri dev",
+    "predesktop:build": "node scripts/ensureCargo.mjs",
+    "predesktop:dev": "node scripts/ensureCargo.mjs",
     "dev": "tsx server.ts",
     "lint": "tsc --noEmit",
     "preview": "vite preview",
