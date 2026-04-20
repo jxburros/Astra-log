@@ -74,7 +74,9 @@ async function startServer() {
 
     // Local/Ollama: fetch live tags from the running instance
     if (provider === 'local') {
-      const rawUrl = (localUrl || 'http://localhost:11434').replace(/\/+$/, '');
+      // Strip trailing slashes without a regex (avoids ReDoS on pathological input)
+      let rawUrl = localUrl || 'http://localhost:11434';
+      while (rawUrl.endsWith('/')) rawUrl = rawUrl.slice(0, -1);
       // Validate scheme to prevent SSRF via non-HTTP protocols
       let baseUrl: string;
       try {
@@ -217,6 +219,10 @@ async function startServer() {
         }));
         
         const geminiModel = model || "gemini-2.5-flash";
+        // Validate model ID: only allow word characters, hyphens, dots, and colons (no path traversal)
+        if (!/^[\w.-]+$/.test(geminiModel)) {
+          throw new Error("Invalid model ID");
+        }
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
           method: "POST",
           headers: {
