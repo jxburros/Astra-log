@@ -15,16 +15,18 @@ export async function parseZipToTree(file: File): Promise<ParsedZip> {
   const zip = await JSZip.loadAsync(file);
   const tree: FileSystemTree = {};
 
-  // Find the root folder name if everything is nested under one folder (typical for GitHub zips)
+  // Find the root folder name if everything is nested under one folder (typical for GitHub zips).
+  // We compute the longest common prefix across ALL file paths so that ordering does not matter.
   const files = Object.values(zip.files).filter(f => !f.dir);
   let rootPrefix = '';
   if (files.length > 0) {
-    const firstPathParts = files[0].name.split('/');
-    if (firstPathParts.length > 1) {
-      const potentialRoot = firstPathParts[0] + '/';
-      const allShareRoot = files.every(f => f.name.startsWith(potentialRoot));
-      if (allShareRoot) {
-        rootPrefix = potentialRoot;
+    // Collect the set of distinct top-level path segments across all files
+    const topLevelFolders = new Set(files.map(f => f.name.split('/')[0] + '/'));
+    // A single shared root only exists when every file falls under exactly one top-level folder
+    if (topLevelFolders.size === 1) {
+      const candidate = [...topLevelFolders][0];
+      if (files.every(f => f.name.startsWith(candidate))) {
+        rootPrefix = candidate;
       }
     }
   }

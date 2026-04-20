@@ -74,7 +74,18 @@ async function startServer() {
 
     // Local/Ollama: fetch live tags from the running instance
     if (provider === 'local') {
-      const baseUrl = (localUrl || 'http://localhost:11434').replace(/\/+$/, '');
+      const rawUrl = (localUrl || 'http://localhost:11434').replace(/\/+$/, '');
+      // Validate scheme to prevent SSRF via non-HTTP protocols
+      let baseUrl: string;
+      try {
+        const parsed = new URL(rawUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          return res.status(400).json({ error: 'Invalid Ollama URL: only http:// and https:// are supported' });
+        }
+        baseUrl = rawUrl;
+      } catch {
+        return res.status(400).json({ error: 'Invalid Ollama URL' });
+      }
       try {
         const response = await fetch(`${baseUrl}/api/tags`);
         if (!response.ok) throw new Error(`Ollama responded with ${response.status}`);
@@ -125,7 +136,12 @@ async function startServer() {
         models = (data.data as any[]).map(m => ({ id: m.id, name: m.display_name || m.id }));
       } else if (provider === "gemini") {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+          `https://generativelanguage.googleapis.com/v1beta/models`,
+          {
+            headers: {
+              "x-goog-api-key": apiKey,
+            }
+          }
         );
         const data = await response.json();
         if (data.error) throw new Error(data.error.message);
@@ -201,9 +217,12 @@ async function startServer() {
         }));
         
         const geminiModel = model || "gemini-2.5-flash";
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
             contents: formattedMessages

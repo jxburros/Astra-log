@@ -2,7 +2,7 @@
 name = "astra-log"
 version = "0.1.0"
 description = "Astra/log desktop app"
-authors = ["you"]
+authors = ["Jeffrey Guntly / JX Holdings, LLC"]
 edition = "2021"
 
 [build-dependencies]

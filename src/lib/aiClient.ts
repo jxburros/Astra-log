@@ -112,7 +112,12 @@ async function fetchModelsDirect(
       models = (data.data as any[]).map((m) => ({ id: m.id, name: m.display_name || m.id }));
     } else if (provider === 'gemini') {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models`,
+        {
+          headers: {
+            'x-goog-api-key': apiKey,
+          },
+        },
       );
       const data = await response.json();
       if (data.error) throw new Error(data.error.message);
@@ -218,10 +223,13 @@ async function sendChatDirect(
     }));
     const geminiModel = model || 'gemini-2.5-flash';
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: systemPrompt }] },
           contents: formattedMessages,

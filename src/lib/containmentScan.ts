@@ -104,6 +104,7 @@ export function scanPackageJson(content: string): ScanResult {
     ...(pkg.dependencies as Record<string, string> | undefined),
     ...(pkg.devDependencies as Record<string, string> | undefined),
     ...(pkg.optionalDependencies as Record<string, string> | undefined),
+    ...(pkg.peerDependencies as Record<string, string> | undefined),
   };
 
   for (const [name, version] of Object.entries(allDeps)) {
