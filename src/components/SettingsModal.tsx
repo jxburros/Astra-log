@@ -38,7 +38,11 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
   const hasGrok = (value: string) => /grok/i.test(value);
 
   const updateGrokDetection = (nextSettings: Settings) => {
-    setGrokDetectedInInputs(hasGrok(nextSettings.localUrl || '') || hasGrok(nextSettings.model || ''));
+    setGrokDetectedInInputs(
+      hasGrok(nextSettings.localUrl || '') ||
+      hasGrok(nextSettings.model || '') ||
+      hasGrok(nextSettings.customInstructions || '')
+    );
   };
 
   // Fetch models whenever the modal opens
@@ -93,12 +97,17 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
     updateGrokDetection(nextSettings);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      doFetchModels('local', '', localSettings.model, localUrl);
+      doFetchModels('local', '', '', localUrl);
     }, 700);
   }
 
   function handleSaveAttempt() {
-    if (grokDetectedInInputs || hasGrok(localSettings.localUrl || '') || hasGrok(localSettings.model || '')) {
+    if (
+      grokDetectedInInputs ||
+      hasGrok(localSettings.localUrl || '') ||
+      hasGrok(localSettings.model || '') ||
+      hasGrok(localSettings.customInstructions || '')
+    ) {
       setShowGrokWarning(true);
       return;
     }
@@ -232,7 +241,11 @@ export function SettingsModal({ isOpen, onClose, settings, onSave }: Props) {
             <label className="block text-sm font-medium text-zinc-400 mb-1.5">Custom Instructions <span className="text-zinc-600 font-normal">(optional)</span></label>
             <textarea
               value={localSettings.customInstructions || ''}
-              onChange={e => setLocalSettings(prev => ({ ...prev, customInstructions: e.target.value }))}
+              onChange={e => {
+                const nextSettings = { ...localSettings, customInstructions: e.target.value };
+                setLocalSettings(nextSettings);
+                updateGrokDetection(nextSettings);
+              }}
               placeholder="Override or extend the default consultant persona. E.g. &quot;Focus on accessibility and WCAG compliance in all responses.&quot;"
               rows={3}
               className="w-full bg-black/60 border border-white/8 rounded-xl px-3 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500/40 focus:ring-1 focus:ring-indigo-500/25 transition-all resize-none text-sm"

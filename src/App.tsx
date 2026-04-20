@@ -78,6 +78,8 @@ export default function App() {
   const [uploadInputKey, setUploadInputKey] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showGrokWarning, setShowGrokWarning] = useState(false);
+  /** Controls the "Start new project?" confirmation modal (replaces window.confirm). */
+  const [showNewProjectConfirm, setShowNewProjectConfirm] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => {
     const saved = localStorage.getItem('ai_settings');
     if (saved) {
@@ -404,7 +406,9 @@ export default function App() {
   }, []);
 
   const handleSaveSettings = (newSettings: Settings) => {
-    const hasRestrictedGrok = /grok/i.test(`${newSettings.localUrl || ''} ${newSettings.model || ''}`);
+    const hasRestrictedGrok = /grok/i.test(
+      `${newSettings.localUrl || ''} ${newSettings.model || ''} ${newSettings.customInstructions || ''}`
+    );
     if (hasRestrictedGrok) {
       setShowGrokWarning(true);
       return;
@@ -538,9 +542,14 @@ export default function App() {
     terminalOutputBufferRef.current = (terminalOutputBufferRef.current + data).slice(-5000);
   };
 
-  const handleStartOver = useCallback(async () => {
-    const confirmed = window.confirm('Start a new project? This will clear the current session.');
-    if (!confirmed) return;
+  /** Opens the confirmation modal before resetting. Called by the "New Project" button. */
+  const handleStartOver = useCallback(() => {
+    setShowNewProjectConfirm(true);
+  }, []);
+
+  /** Performs the actual session teardown after the user confirms. */
+  const performStartOver = useCallback(async () => {
+    setShowNewProjectConfirm(false);
 
     // ── Intentional-destruction animation ────────────────────────────────────
     setIsDestroying(true);
@@ -613,6 +622,7 @@ export default function App() {
     setPreviewUrl(null);
     setPreviewBaseUrl('');
     setBrowserPath('/');
+    setIframeKey(k => k + 1);
     setRecoveryMessage(null);
     setTroubleshootRequest(null);
     // Force-remount ChatPanel to clear previous conversation
@@ -1274,8 +1284,12 @@ export default function App() {
         e.preventDefault();
         setIsDragging(false);
         const file = e.dataTransfer.files?.[0];
-        if (file && file.name.endsWith('.zip') && status === 'idle') {
-          processZipFile(file);
+        if (file && file.name.endsWith('.zip')) {
+          if (status === 'idle') {
+            processZipFile(file);
+          } else {
+            writeToTerminal('\r\n\x1b[33m[System]\x1b[0m A session is already in progress. Press "New Project" first to start fresh.\r\n');
+          }
         }
       }}
     >
@@ -1358,6 +1372,37 @@ export default function App() {
                 className="px-4 py-1.5 text-sm text-zinc-300 hover:text-white bg-white/10 hover:bg-white/15 border border-white/10 rounded-lg transition-colors"
               >
                 Acknowledge
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── New Project confirmation modal ──────────────────────────────────── */}
+      {showNewProjectConfirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl">
+            <div className="px-5 py-4 border-b border-white/10">
+              <h2 className="text-sm font-semibold text-white">Start a New Project?</h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-zinc-300">
+                This will permanently clear the current session — the terminal, preview, and chat history will all be reset.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/10 bg-white/5 rounded-b-2xl">
+              <button
+                onClick={() => setShowNewProjectConfirm(false)}
+                className="px-4 py-1.5 text-sm text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={performStartOver}
+                className="px-4 py-1.5 text-sm font-medium text-white bg-rose-600 hover:bg-rose-500 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Clear &amp; Reset
               </button>
             </div>
           </div>
