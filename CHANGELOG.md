@@ -1,6 +1,9 @@
 # Changelog
 
 ## 2026-04-20 - GitHub Copilot
+- **Fix: `cargo not found` error on `npm run desktop:build`** (`scripts/ensureCargo.mjs`, `package.json`): Added a `predesktop:build` and `predesktop:dev` npm lifecycle hook that runs `scripts/ensureCargo.mjs` before every Tauri invocation. The script detects whether `cargo` is on the PATH; if not, it prints a clear, platform-specific install guide (winget for Windows, `rustup` for macOS/Linux) and exits with a non-zero code so the developer knows exactly what to do instead of receiving a cryptic `program not found` from Tauri.
+
+## 2026-04-20 - GitHub Copilot
 - **Fix: "New Project" broken on Tauri desktop** (`src/App.tsx`): Replaced `window.confirm()` (silently returns falsy in Tauri WebView) with a purpose-built React confirmation modal consistent with the app's design system. Extracted the reset logic into `performStartOver`; `handleStartOver` now opens the modal instead.
 - **Security fix: Gemini API key no longer in URL query params** (`server.ts`, `src/lib/aiClient.ts`): Changed all Gemini REST calls (models list and chat completion) to pass the API key via the `x-goog-api-key` header instead of `?key=` query parameter, preventing the key from appearing in server access logs and browser request history.
 - **Security fix: `GEMINI_API_KEY` removed from Vite bundle** (`vite.config.ts`): Removed the `define: { 'process.env.GEMINI_API_KEY': ... }` block that was baking any `.env` Gemini key into the compiled production JavaScript bundle as a plain string.
