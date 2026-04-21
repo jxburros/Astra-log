@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Trash2, Clock3, List, Heading2, ArrowUpRight } from 'lucide-react';
 
+// Auto-prepended prefix in bullet mode — must stay in sync with
+// the `- ` Markdown list item format expected by the textarea.
+const BULLET_PREFIX = '\n- ';
+
 interface ScratchPadProps {
   /** Increment to clear the scratch pad content on session reset. */
   resetKey?: number;
@@ -39,9 +43,7 @@ export function ScratchPad({ resetKey, value, onChange, onStageNotes }: ScratchP
 
   const handleClear = () => {
     if (!currentContent) return;
-    if (window.confirm('Clear all scratch pad notes?')) {
-      setCurrentContent('');
-    }
+    setCurrentContent('');
   };
 
   const insertTimestamp = () => {
@@ -103,19 +105,18 @@ export function ScratchPad({ resetKey, value, onChange, onStageNotes }: ScratchP
         <textarea
           id="scratch-pad-input"
           value={currentContent}
-          onChange={e => {
-            const value = e.target.value;
-            if (bulletMode) {
-              const lines = value.split('\n');
-              const normalized = lines.map((line, idx) => {
-                if (idx === lines.length - 1 && line === '') return line;
-                if (!line.trim()) return line;
-                return line.startsWith('- ') ? line : `- ${line}`;
-              }).join('\n');
-              setCurrentContent(normalized);
-              return;
-            }
-            setCurrentContent(value);
+          onChange={e => setCurrentContent(e.target.value)}
+          onKeyDown={e => {
+            if (!bulletMode || e.key !== 'Enter') return;
+            e.preventDefault();
+            const el = e.currentTarget;
+            const { selectionStart, selectionEnd, value } = el;
+            const newValue = value.slice(0, selectionStart) + BULLET_PREFIX + value.slice(selectionEnd);
+            setCurrentContent(newValue);
+            // Restore cursor after the inserted prefix
+            requestAnimationFrame(() => {
+              el.selectionStart = el.selectionEnd = selectionStart + BULLET_PREFIX.length;
+            });
           }}
           placeholder="Private notes — never shared with AI…"
           className="absolute inset-0 w-full h-full bg-transparent text-sm text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none font-mono leading-relaxed p-4"

@@ -39,6 +39,10 @@ const STEPS: TourStep[] = [
 ];
 
 const PAD = 10;
+// Estimated card dimensions used for viewport clamping — must stay in sync
+// with the actual rendered size of the tour card (w-72 = 288px, ~224px tall).
+const CARD_W = 288;
+const CARD_H = 224;
 
 interface Props {
   onComplete: () => void;
@@ -95,28 +99,42 @@ export function WorkspaceTour({ onComplete }: Props) {
     const gap = 18;
     const { left, top, width, height } = spotlight;
     const s = current.tooltipSide;
+    // Estimated card dimensions used for viewport clamping (mirrors module-level constants)
+    const cardH = CARD_H;
+    const cardW = CARD_W;
 
     if (s === 'right') {
+      const cardLeft = left + width + PAD + gap;
+      const cardTop = top + height / 2 - cardH / 2;
       return {
         position: 'fixed',
-        left: left + width + PAD + gap,
-        top: top + height / 2,
-        transform: 'translateY(-50%)',
+        left: Math.min(cardLeft, vw - cardW - 10),
+        top: Math.max(10, Math.min(cardTop, vh - cardH - 10)),
       };
     }
     if (s === 'left') {
       return {
         position: 'fixed',
         right: window.innerWidth - (left - PAD - gap),
-        top: top + height / 2,
-        transform: 'translateY(-50%)',
+        top: Math.max(10, Math.min(top + height / 2 - cardH / 2, vh - cardH - 10)),
       };
     }
     if (s === 'bottom') {
+      const candidateTop = top + height + PAD + gap;
+      const fitsBelow = candidateTop + cardH + 10 <= vh;
+      const aboveTop = top - PAD - gap - cardH;
+      const fitsAbove = aboveTop >= 10;
+      const resolvedTop = fitsBelow
+        ? candidateTop
+        : fitsAbove
+          ? aboveTop
+          : Math.max(10, Math.min(vh / 2 - cardH / 2, vh - cardH - 10));
+      const centreX = left + width / 2;
+      const clampedLeft = Math.max(cardW / 2 + 10, Math.min(centreX, vw - cardW / 2 - 10));
       return {
         position: 'fixed',
-        top: top + height + PAD + gap,
-        left: Math.min(left + width / 2, window.innerWidth - 340),
+        top: resolvedTop,
+        left: clampedLeft,
         transform: 'translateX(-50%)',
       };
     }

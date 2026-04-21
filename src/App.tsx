@@ -377,6 +377,19 @@ export default function App() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Auto-collapse terminal in standard layout at narrow viewports to prevent overflow
+  useEffect(() => {
+    const TERMINAL_COLLAPSE_THRESHOLD = 1080;
+    const checkWidth = () => {
+      if (layoutPreset === 'standard' && window.innerWidth < TERMINAL_COLLAPSE_THRESHOLD) {
+        setTerminalCollapsed(true);
+      }
+    };
+    checkWidth();
+    window.addEventListener('resize', checkWidth);
+    return () => window.removeEventListener('resize', checkWidth);
+  }, [layoutPreset]);
+
   // ── 1.0: Session Freshness timer ─────────────────────────────────────────
   // Start the clock when the session first goes non-idle; tick every second.
   useEffect(() => {
@@ -1598,10 +1611,13 @@ export default function App() {
 
           <button 
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+            className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
             title="AI Settings"
           >
             <SettingsIcon className="w-5 h-5" />
+            {settings.provider !== 'local' && !settings.apiKey && (
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-amber-400 pointer-events-none" />
+            )}
           </button>
 
           {/* Phase 3.2 — Help guide */}
@@ -1614,10 +1630,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      <div className="px-6 py-1.5 border-b border-white/8 bg-black/20 text-center text-[10px] tracking-wide text-zinc-400 shrink-0">
-        Created by Jeffrey Guntly · © JX Holdings, LLC
-      </div>
 
       {/* ── Main workspace ───────────────────────────────────────────────────── */}
 
@@ -2780,6 +2792,11 @@ export default function App() {
 
         </main>
       )}
+
+      {/* ── Footer attribution ────────────────────────────────────────────────── */}
+      <div className="px-6 py-1 border-t border-white/5 bg-black/20 text-center text-[10px] tracking-wide text-zinc-600 shrink-0">
+        Created by Jeffrey Guntly · © JX Holdings, LLC
+      </div>
     </div>
   );
 }

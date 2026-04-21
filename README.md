@@ -50,7 +50,7 @@ An in-browser Node.js sandbox that lets you upload a zip file of any Node.js pro
 - **Welcome Onboarding** — a one-time splash screen on first launch explains the Zero Persistence and Consultant-Only principles; users can immediately launch a guided workspace tour
 - **Workspace Tour** — a 3-step guided tour (Terminal → Preview → Scratch Pad) with SVG spotlight highlighting and step-by-step descriptions; available on first launch or re-launchable from the welcome flow
 - **In-App Help Guide** — click the `?` icon in the header to open a usage guide with a keyboard shortcuts cheat sheet and workflow tips; always available without leaving the workspace
-- **Creator Attribution Bar** — a compact, always-visible line directly beneath the app header credits Jeffrey Guntly and JX Holdings, LLC as creators and copyright owners
+- **Creator Attribution Footer** — a compact line at the bottom of the app credits Jeffrey Guntly and JX Holdings, LLC as creators and copyright owners
 
 ## Tech Stack
 
