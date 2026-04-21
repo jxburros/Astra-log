@@ -35,7 +35,13 @@ export function TerminalComponent({ onTerminalReady, onTerminalData, statusMessa
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(terminalRef.current);
-    fitAddon.fit();
+
+    // Defer initial fit until the container has non-zero dimensions
+    requestAnimationFrame(() => {
+      if (terminalRef.current && terminalRef.current.offsetWidth > 0) {
+        fitAddon.fit();
+      }
+    });
 
     callbacksRef.current.onTerminalReady(term);
 
@@ -44,7 +50,16 @@ export function TerminalComponent({ onTerminalReady, onTerminalData, statusMessa
     });
 
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
+      // Only fit when the container has actual dimensions to avoid xterm Viewport errors
+      if (terminalRef.current && terminalRef.current.offsetWidth > 0 && terminalRef.current.offsetHeight > 0) {
+        requestAnimationFrame(() => {
+          try {
+            fitAddon.fit();
+          } catch {
+            // Ignore if terminal renderer is not yet ready
+          }
+        });
+      }
     });
     resizeObserver.observe(terminalRef.current);
 

@@ -368,7 +368,7 @@ Format your response with clear headings for each category and bullet points for
               {!isCompact && (
                 <span className="leading-tight">
                   <span className="block">Create Artifact</span>
-                  <span className="block text-[10px] text-zinc-500">Plan/List/Summary · MD/PDF/TXT</span>
+                  <span className="block text-[10px] text-zinc-500">Plan/List/Summary · MD/PDF/HTML/JSON/TXT</span>
                 </span>
               )}
             </button>

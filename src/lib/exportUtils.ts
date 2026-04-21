@@ -93,9 +93,15 @@ function matchCanonicalLabel(title: string): string | null {
   return null;
 }
 
+/** Returns true when a message is a system-generated error (not real AI content). */
+function isErrorMessage(m: Message): boolean {
+  return m.role === 'assistant' && m.content.startsWith('Error:');
+}
+
 /** Formats chat messages into a readable transcript for AI consumption. */
 function formatConversationForAI(messages: Message[]): string {
   return messages
+    .filter(m => !isErrorMessage(m))
     .map(m => `${m.role === 'user' ? 'USER' : 'ASSISTANT'}: ${m.content}`)
     .join('\n\n---\n\n');
 }
@@ -294,7 +300,7 @@ export async function generateAIExportArtifact(
  */
 export function parseArtifactSections(messages: Message[]): ParsedArtifact {
   const assistantContent = messages
-    .filter(m => m.role === 'assistant')
+    .filter(m => m.role === 'assistant' && !isErrorMessage(m))
     .map(m => m.content)
     .join('\n\n');
 
@@ -336,7 +342,7 @@ export function parseArtifactSections(messages: Message[]): ParsedArtifact {
 }
 
 function extractFixItems(messages: Message[]): string[] {
-  const assistantText = messages.filter(m => m.role === 'assistant').map(m => m.content).join('\n');
+  const assistantText = messages.filter(m => m.role === 'assistant' && !isErrorMessage(m)).map(m => m.content).join('\n');
   const lines = assistantText
     .split('\n')
     .map(l => l.trim())
